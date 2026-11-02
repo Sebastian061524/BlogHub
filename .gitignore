@@ -1,0 +1,11 @@
+# Java 编译与构建产物
+*.class
+target/
+out/
+
+# 本地开发配置
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
