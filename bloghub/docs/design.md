@@ -7,12 +7,28 @@
 ## 1. 通用约定
 
 - 建议表名统一使用 `blog_` 前缀，字段统一采用小写字母和下划线命名。
+- Java 实体、DTO／VO 字段统一使用小驼峰命名（camelCase）；JSON 请求和响应字段、查询参数及路径参数占位符与对应 Java 字段保持同名，详见 api.md。
+- 数据库列名继续使用下划线，通过 MyBatis 的结果映射或驼峰映射转换为 Java 字段；这与 Jackson 处理 JSON 是两个独立环节，接口不使用全局 SNAKE_CASE 命名策略。
 - 建议使用 MySQL InnoDB 引擎、`utf8mb4` 字符集。
 - 主键沿用 `INT` 自增；所有引用该主键的外键保持相同类型及符号属性。
 - 下文所有字段均不允许 `NULL`；主键由数据库自增生成。
 - “无默认值”表示写入时必须提供，不能依赖空字符串、0 等值代替必填数据。
 - 字符串长度为存储容量，非空、非纯空白、最小长度等规则仍需业务层校验。
 - 用户名按需求去除首尾空白后使用并保留大小写，注册、登录查询和唯一性判断均区分大小写，不得统一转成小写；用户名列应采用区分大小写的比较规则，具体排序规则在编写建表 SQL 时落实。
+
+常见字段对应关系：
+
+| 数据库列名 | Java 字段／对应接口属性 |
+| --- | --- |
+| user_name | userName |
+| user_id | userId |
+| category_name | categoryName |
+| category_id | categoryId |
+| article_id | articleId |
+| create_time | createTime |
+| update_time | updateTime |
+
+数据库中的 `password_hash` 对应实体字段 `passwordHash`，不接受客户端指定，也不在响应中返回。注册和登录 DTO 使用 `password` 接收原始密码。实体主键 `id` 对外组织成 articleId、categoryId、commentId 等标识时，由响应对象明确映射，不是自动给数据库列添加前缀。
 
 ## 2. 用户表：`blog_user`
 
@@ -30,6 +46,8 @@
 - 密码输入仅允许英文字母、数字和英文半角标点（ASCII U+0021–U+007E），拒绝所有空白和范围外字符，不自动删除字符；该规则在注册和登录时校验，不改变 password_hash 字段的存储用途。
 - 密码哈希算法及参数在认证开发时选择，并核对输出容量；接口和日志均不得暴露该字段。
 - 注册前查询用户名只能改善提示，最终仍需依赖数据库唯一约束处理重复写入。
+- 注册和登录 DTO 保留输入校验注解，setter 仅负责赋值。Service 在查询数据库前调用共用的 UserInputValidator：先去除用户名首尾空白（null 保持为 null，保留大小写），再通过 jakarta.validation.Validator 执行 DTO 校验；密码保持原样，校验失败转为 HTTP 400 的业务异常。
+- 注册 Controller 使用 @RequestBody 接收 JSON，将规范化和校验交给 Service，不在该参数上提前执行 @Valid；保留的 /debug/validate-register 接口复用同一个 Service 层输入校验组件，因此 HTTP 请求与直接调用 Service 的输入规则一致。
 
 ## 3. 文章表：`blog_article`
 
@@ -56,7 +74,7 @@
 | 字段 | 类型 | 可空 | 默认值 | 约束 | 用途 |
 | --- | --- | --- | --- | --- | --- |
 | id | INT | 否 | 自增生成 | 主键 | 分类唯一标识 |
-| name | VARCHAR(20) | 否 | 无 | 唯一 | 分类名称 |
+| category_name | VARCHAR(20) | 否 | 无 | 唯一 | 分类名称 |
 
 设计说明：分类由初始化数据提供，不开放新增、修改和删除接口；保留你选择的名称唯一约束。
 
@@ -95,7 +113,7 @@
 | --- | --- | --- | --- |
 | 四张表 | id | 主键索引 | 按唯一标识查询和关联 |
 | blog_user | user_name | 唯一索引 | 登录查找、保证用户名唯一 |
-| blog_category | name | 唯一索引 | 保证分类名称唯一 |
+| blog_category | category_name | 唯一索引 | 保证分类名称唯一 |
 | blog_article | create_time, id | 普通联合索引 | 全部文章按发布时间及 id 倒序分页 |
 | blog_article | category_id, create_time, id | 普通联合索引 | 按分类筛选后按时间及 id 倒序分页 |
 | blog_article | user_id | 普通索引 | 支持作者外键约束 |

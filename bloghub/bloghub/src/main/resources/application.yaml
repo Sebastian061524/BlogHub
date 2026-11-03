@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: bloghub
+  datasource:
+    url: jdbc:mysql://localhost:3306/bloghub
+    username: root
+    password: ${BLOGHUB_DB_PASSWORD}
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+
+jwt:
+  secret-base64: ${BLOGHUB_JWT_SECRET}
+  expiration-seconds: 7200

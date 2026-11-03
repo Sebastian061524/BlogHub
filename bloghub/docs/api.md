@@ -7,7 +7,9 @@
 
 - 本地服务地址由工程启动配置决定；本文路径均为相对于服务地址的路径。
 - 请求体和响应体使用 JSON；有请求体时，请求头使用 `Content-Type: application/json`。
-- 字段使用小写字母加下划线命名，例如 `category_id`、`article_id`。
+- JSON 请求和响应字段、查询参数以及路径参数占位符统一使用小驼峰命名（camelCase），例如 `userName`、`categoryId`、`articleId`；Java DTO／VO 字段采用相同名称。
+- 数据库列名仍使用下划线，例如 `user_name`、`category_id`；数据库列与 Java 字段的映射由持久层处理，不改变对外接口字段名。
+- JSON 按同名字段绑定，不采用全局 SNAKE_CASE 命名策略；GET 查询参数按文档中的驼峰参数名传递，不能依靠 Jackson 的 JSON 配置转换查询参数名。
 - 页码和资源标识使用 32 位正整数，允许范围为 1–2147483647；超出范围按参数错误处理。
 - 受保护接口通过请求头 `Authorization: Bearer <token>` 携带登录获得的 JWT；`<token>` 为占位符，不是实际令牌。
 - 服务端验证凭证后确定当前用户，不使用请求体中的用户标识代替登录身份。
@@ -33,12 +35,12 @@ HTTP 状态码表示 HTTP 层面的结果，响应体中的 `status` 是本项�
 | 登录 | POST | /auth/login | 公开 | 200 |
 | 发布文章 | POST | /articles | 已登录 | 201 |
 | 文章列表 | GET | /articles | 公开 | 200 |
-| 文章详情 | GET | /articles/{article_id} | 公开 | 200 |
-| 修改文章 | PUT | /articles/{article_id} | 已登录且为作者 | 200 |
-| 删除文章 | DELETE | /articles/{article_id} | 已登录且为作者 | 200 |
+| 文章详情 | GET | /articles/{articleId} | 公开 | 200 |
+| 修改文章 | PUT | /articles/{articleId} | 已登录且为作者 | 200 |
+| 删除文章 | DELETE | /articles/{articleId} | 已登录且为作者 | 200 |
 | 分类列表 | GET | /categories | 公开 | 200 |
-| 发布评论 | POST | /articles/{article_id}/comments | 已登录 | 201 |
-| 评论列表 | GET | /articles/{article_id}/comments | 公开 | 200 |
+| 发布评论 | POST | /articles/{articleId}/comments | 已登录 | 201 |
+| 评论列表 | GET | /articles/{articleId}/comments | 公开 | 200 |
 
 ## 2. 注册用户
 
@@ -61,7 +63,7 @@ HTTP 状态码表示 HTTP 层面的结果，响应体中的 `status` 是本项�
 
 | 字段 | JSON 类型 | 是否必填 | 校验规则 |
 | --- | --- | --- | --- |
-| user_name | string | 是 | 去除首尾空白后为 3–20 个字符，不允许内部空白，区分大小写且不能重复 |
+| userName | string | 是 | 去除首尾空白后为 3–20 个字符，不允许内部空白，区分大小写且不能重复 |
 | password | string | 是 | 6–64 个字符，仅允许英文字母、数字和英文半角标点（ASCII U+0021–U+007E），不允许任何空白，不强制混合字符类型 |
 
 补充规则：
@@ -70,7 +72,7 @@ HTTP 状态码表示 HTTP 层面的结果，响应体中的 `status` 是本项�
 - 用户名先去除首尾空白，再检查长度、内部空白和唯一性，并保存处理后的用户名。
 - Alice 与 alice 是不同用户名，可分别注册；Alice 与首尾带空白的同名输入则视为重复。
 - 密码出现非法字符时直接拒绝，不自动去除空格、替换字符或改变大小写。
-- 本接口只接受 user_name 和 password；提交 id、password_hash 等未定义字段时返回参数错误。
+- 本接口只接受 userName 和 password；提交 id、passwordHash 等未定义字段时返回参数错误。
 - 密码哈希由服务端完成，不要求调用方提交哈希结果；响应及日志不得包含原始密码或密码摘要。
 
 ### 2.3 请求示例
@@ -83,7 +85,7 @@ HTTP 状态码表示 HTTP 层面的结果，响应体中的 `status` 是本项�
 
 ```json
 {
-  "user_name": "Alice",
+  "userName": "Alice",
   "password": "BlogHub!2026"
 }
 ```
@@ -187,7 +189,7 @@ data 为 null 表示不返回用户业务数据，不表示整个响应体为空
 | --- | --- | --- | --- |
 | title | string | 是 | 1–50 个字符，不能全部为空白 |
 | body | string | 是 | 1–1000 个字符，不能全部为空白 |
-| category_id | integer | 是 | 必须为正整数，并且分类必须存在 |
+| categoryId | integer | 是 | 必须为正整数，并且分类必须存在 |
 
 补充规则：
 
@@ -195,7 +197,7 @@ data 为 null 表示不返回用户业务数据，不表示整个响应体为空
 - 标题和正文不得为空字符串；可以包含正常空格，正文可以包含换行。
 - 纯空白包括仅由空格、制表符、换行等空白字符构成的内容。
 - 长度按字符数计算，不按存储字节数计算。
-- 本接口只接受上表中的字段；提交 `user_id`、`id`、时间字段或其他未定义字段时返回参数错误，避免误认为这些字段可由调用方控制。
+- 本接口只接受上表中的字段；提交 `userId`、`id`、时间字段或其他未定义字段时返回参数错误，避免误认为这些字段可由调用方控制。
 
 ### 3.4 请求示例
 
@@ -214,7 +216,7 @@ Content-Type: application/json
 {
   "title": "我的第一篇博客",
   "body": "今天开始独立开发 BlogHub，记录自己的学习过程。",
-  "category_id": 1
+  "categoryId": 1
 }
 ```
 
@@ -239,14 +241,14 @@ HTTP 状态码：`201 Created`
   "status": 1,
   "message": "文章发布成功",
   "data": {
-    "article_id": 123
+    "articleId": 123
   }
 }
 ```
 
 | 字段 | 含义 |
 | --- | --- |
-| data.article_id | 新创建文章的唯一标识，示例值为 123 |
+| data.articleId | 新创建文章的唯一标识，示例值为 123 |
 
 发布成功无需重复返回全文；文章详情由后续详情查询接口提供。响应不得包含密码、密码摘要或登录令牌。
 
@@ -257,7 +259,7 @@ HTTP 状态码：`201 Created`
 | JSON 格式错误、缺少字段、类型错误、未定义字段 | 400 Bad Request | 请求参数不合法 | 不创建文章 |
 | 标题为空白或超过 50 个字符 | 400 Bad Request | 标题必须为 1–50 个字符且不能全部为空白 | 不创建文章 |
 | 正文为空白或超过 1000 个字符 | 400 Bad Request | 正文必须为 1–1000 个字符且不能全部为空白 | 不创建文章 |
-| category_id 不是正整数 | 400 Bad Request | 分类标识必须为正整数 | 不创建文章 |
+| categoryId 不是正整数 | 400 Bad Request | 分类标识必须为正整数 | 不创建文章 |
 | 缺少、无效或过期的登录凭证 | 401 Unauthorized | 请先登录或重新登录 | 不创建文章 |
 | 分类标识合法，但对应分类不存在 | 404 Not Found | 分类不存在 | 不创建文章 |
 | 系统内部错误 | 500 Internal Server Error | 系统繁忙，请稍后重试 | 写入失败时回滚，不返回内部错误细节 |
@@ -298,7 +300,7 @@ HTTP 状态码：`201 Created`
 
 ### 3.8 后续接口测试清单
 
-- [ ] 有效登录凭证和合法输入：返回 201、status 为 1，并返回 article_id。
+- [ ] 有效登录凭证和合法输入：返回 201、status 为 1，并返回 articleId。
 - [ ] 新文章可被查询，作者是当前登录用户，分类及内容正确。
 - [ ] 未携带、无效或过期的凭证：返回 401，不新增文章。
 - [ ] 字段缺失、null、类型错误、空字符串或纯空白：返回 400，不新增文章。
@@ -306,7 +308,7 @@ HTTP 状态码：`201 Created`
 - [ ] 标题 51 个字符或正文 1001 个字符：返回 400，不新增文章。
 - [ ] 分类标识为零、负数或非整数：返回 400。
 - [ ] 分类标识合法但分类不存在：返回 404，不新增文章。
-- [ ] 请求体额外包含 user_id 等未定义字段：返回 400，不能冒充其他作者。
+- [ ] 请求体额外包含 userId 等未定义字段：返回 400，不能冒充其他作者。
 - [ ] 响应及日志不暴露密码、密码摘要、登录令牌、堆栈或 SQL。
 
 以上为待执行的验收场景，须在实际实现并测试后勾选。
@@ -332,14 +334,14 @@ HTTP 状态码：`201 Created`
 
 | 字段 | JSON 类型 | 是否必填 | 校验规则 |
 | --- | --- | --- | --- |
-| user_name | string | 是 | 去除首尾空白后为 3–20 个字符，不允许内部空白，查找账号时区分大小写 |
+| userName | string | 是 | 去除首尾空白后为 3–20 个字符，不允许内部空白，查找账号时区分大小写 |
 | password | string | 是 | 6–64 个字符，仅允许英文字母、数字和英文半角标点（ASCII U+0021–U+007E），不允许任何空白，不强制混合字符类型 |
 
 补充规则：
 
 - 字段缺失、为 null、类型不符或为空字符串时返回 400，不进入账号密码验证。
 - 用户名处理规则与注册一致；密码不自动去除空格、替换字符或改变大小写。
-- 本接口只接受 user_name 和 password；提交 user_id、password_hash、token 等未定义字段时返回参数错误。
+- 本接口只接受 userName 和 password；提交 userId、passwordHash、token 等未定义字段时返回参数错误。
 - 请求中的 password 是用户输入的原始密码；由服务端根据已保存的密码哈希进行验证，不要求调用方提交密码哈希。
 
 ### 4.3 请求示例
@@ -352,7 +354,7 @@ HTTP 状态码：`201 Created`
 
 ```json
 {
-  "user_name": "Alice",
+  "userName": "Alice",
   "password": "BlogHub!2026"
 }
 ```
@@ -379,7 +381,7 @@ HTTP 状态码：`200 OK`
   "message": "登录成功",
   "data": {
     "token": "示例令牌",
-    "expires_in": 7200
+    "expiresIn": 7200
   }
 }
 ```
@@ -387,7 +389,7 @@ HTTP 状态码：`200 OK`
 | 字段 | JSON 类型 | 含义 |
 | --- | --- | --- |
 | data.token | string | 服务端签发的 JWT；示例令牌只是占位文本，实际调用必须使用真实签发的令牌 |
-| data.expires_in | integer | 凭证自签发时起的有效时长，单位为秒，暂定 7200 秒，不是时间戳 |
+| data.expiresIn | integer | 凭证自签发时起的有效时长，单位为秒，暂定 7200 秒，不是时间戳 |
 
 调用受保护接口时，将 token 放入请求头：
 
@@ -395,7 +397,7 @@ HTTP 状态码：`200 OK`
 Authorization: Bearer <token>
 ```
 
-user_id 不能替代 token 证明已登录，本次登录响应不额外返回用户信息。
+userId 不能替代 token 证明已登录，本次登录响应不额外返回用户信息。
 
 ### 4.6 失败情况
 
@@ -431,23 +433,23 @@ user_id 不能替代 token 证明已登录，本次登录响应不额外返回�
 
 ### 4.7 JWT 有效期与过期处理
 
-- JWT 有效期暂定为 2 小时，响应中的 expires_in 与服务端实际签发的有效期保持一致。
+- JWT 有效期暂定为 2 小时，响应中的 expiresIn 与服务端实际签发的有效期保持一致。
 - 服务端负责验证令牌的真实性和有效期，不信任调用方自行声明的用户身份或过期状态。
 - 访问受保护接口时，凭证缺失、无效或过期均返回 401，不执行受保护操作。
 - JWT 到期后，用户重新调用登录接口，用用户名和密码获取新令牌；本周不提供刷新令牌和自动续期功能。
-- 调用方可根据 expires_in 提示重新登录，但客户端判断不能代替服务端验证。
+- 调用方可根据 expiresIn 提示重新登录，但客户端判断不能代替服务端验证。
 - 原始密码、密码摘要、完整 JWT 及携带 JWT 的 Authorization 请求头均不得写入日志。
 
 ### 4.8 后续接口测试清单
 
-- [ ] 不携带 JWT，以合法格式的正确用户名和密码登录：返回 200、status 为 1，并返回 token 和 expires_in。
-- [ ] 使用返回的有效 token 发布文章，作者为登录用户；只传 user_id 不能代替认证。
+- [ ] 不携带 JWT，以合法格式的正确用户名和密码登录：返回 200、status 为 1，并返回 token 和 expiresIn。
+- [ ] 使用返回的有效 token 发布文章，作者为登录用户；只传 userId 不能代替认证。
 - [ ] 缺少 password、字段为 null、类型错误或空字符串：返回 400，不签发令牌。
 - [ ] 用户名或密码不符合输入规则：返回 400，不签发令牌。
 - [ ] 仅有 Alice 账号时，用 alice 登录：返回 401；使用首尾带空白的 Alice 和正确密码可以登录。
 - [ ] 用户名不存在和密码错误：均返回 401 及相同的“用户名或密码错误”提示。
 - [ ] 密码不自动改变大小写或删除非法字符；含空白时直接返回 400。
-- [ ] expires_in 为 7200，且与服务端签发令牌的实际有效期一致。
+- [ ] expiresIn 为 7200，且与服务端签发令牌的实际有效期一致。
 - [ ] 已过期或被篡改的 token 访问发布文章接口：返回 401，不新增文章。
 - [ ] 旧 token 过期后，仍可不携带 JWT 再次登录，并获取有效的新令牌。
 - [ ] 响应不含密码或密码摘要，日志不含原始密码、密码摘要或完整 JWT。
@@ -474,11 +476,11 @@ user_id 不能替代 token 证明已登录，本次登录响应不额外返回�
 | 参数 | 类型 | 是否必填 | 默认值 | 校验与业务规则 |
 | --- | --- | --- | --- | --- |
 | page | integer | 否 | 1 | 必须为正整数；省略时查询第 1 页，传空值、零、负数或非整数时返回 400 |
-| category_id | integer | 否 | 不按分类筛选 | 提供时必须为正整数且分类存在；传空值或格式非法返回 400，分类不存在返回 404 |
+| categoryId | integer | 否 | 不按分类筛选 | 提供时必须为正整数且分类存在；传空值或格式非法返回 400，分类不存在返回 404 |
 
-- 每页固定最多 10 条，本周不提供 page_size 或 pageSize 请求参数。
-- 不传 category_id 时，在全部分类的文章中分页查询，不是一次返回全部文章。
-- 文章按 create_time 倒序排列，时间相同时按 article_id 倒序排列。
+- 每页固定最多 10 条，本周不提供自定义 pageSize 请求参数；响应中的 pageSize 固定为 10。
+- 不传 categoryId 时，在全部分类的文章中分页查询，不是一次返回全部文章。
+- 文章按 createTime 倒序排列，时间相同时按 articleId 倒序排列。
 - 先校验参数格式，再检查指定分类是否存在，最后查询文章和总数。
 
 ### 5.3 请求示例
@@ -486,7 +488,7 @@ user_id 不能替代 token 证明已登录，本次登录响应不额外返回�
 ```http
 GET /articles
 GET /articles?page=2
-GET /articles?page=1&category_id=3
+GET /articles?page=1&categoryId=3
 ```
 
 第一种查询全部文章的第 1 页；第二种查询全部文章的第 2 页；第三种查询分类 3 的第 1 页。以上请求均不带请求体，也不要求 JWT。
@@ -495,7 +497,7 @@ GET /articles?page=1&category_id=3
 
 HTTP 状态码：`200 OK`
 
-以下示例对应 `GET /articles?page=1&category_id=3`，假设该分类存在且仅有一篇文章：
+以下示例对应 `GET /articles?page=1&categoryId=3`，假设该分类存在且仅有一篇文章：
 
 ```json
 {
@@ -503,18 +505,18 @@ HTTP 状态码：`200 OK`
   "message": "查询成功",
   "data": {
     "page": 1,
-    "page_size": 10,
+    "pageSize": 10,
     "total": 1,
     "items": [
       {
-        "article_id": 123,
+        "articleId": 123,
         "title": "我的第一篇博客",
         "author": {
-          "user_id": 7,
-          "user_name": "Alice"
+          "userId": 7,
+          "userName": "Alice"
         },
         "summary": "今天开始独立开发 BlogHub，记录自己的学习过程。",
-        "create_time": "2026-11-02T16:00:00+08:00"
+        "createTime": "2026-11-02T16:00:00+08:00"
       }
     ]
   }
@@ -524,15 +526,15 @@ HTTP 状态码：`200 OK`
 | 字段 | JSON 类型 | 含义 |
 | --- | --- | --- |
 | data.page | integer | 本次请求的页码，超出末页时也保留原请求页码 |
-| data.page_size | integer | 固定为 10，不表示本页一定有 10 条 |
+| data.pageSize | integer | 固定为 10，不表示本页一定有 10 条 |
 | data.total | integer | 符合本次筛选条件的文章总数，不是本页条数 |
 | data.items | array | 本页文章列表，最多 10 条；没有数据时为 []，不能为 null |
-| items[].article_id | integer | 文章唯一标识，用于后续查询详情 |
+| items[].articleId | integer | 文章唯一标识，用于后续查询详情 |
 | items[].title | string | 文章标题 |
-| items[].author.user_id | integer | 作者标识 |
-| items[].author.user_name | string | 作者用户名，保留大小写 |
+| items[].author.userId | integer | 作者标识 |
+| items[].author.userName | string | 作者用户名，保留大小写 |
 | items[].summary | string | 正文摘要，暂定取正文前 100 个字符，不足 100 则返回全部，不额外拼接省略号 |
-| items[].create_time | string | 发布时间，采用通用时间格式 |
+| items[].createTime | string | 发布时间，采用通用时间格式 |
 
 summary 由正文生成，不额外保存一份摘要字段，不修改原正文。本列表不返回完整正文或评论；完整正文通过文章详情接口查询。
 
@@ -546,7 +548,7 @@ summary 由正文生成，不额外保存一份摘要字段，不修改原正文
   "message": "查询成功",
   "data": {
     "page": 4,
-    "page_size": 10,
+    "pageSize": 10,
     "total": 23,
     "items": []
   }
@@ -563,7 +565,7 @@ total 不因当前页为空而清零，也不自动跳回第 1 页。
   "message": "查询成功",
   "data": {
     "page": 1,
-    "page_size": 10,
+    "pageSize": 10,
     "total": 0,
     "items": []
   }
@@ -577,8 +579,8 @@ total 不因当前页为空而清零，也不自动跳回第 1 页。
 | 场景 | HTTP 状态码 | message 示例 |
 | --- | --- | --- |
 | page 为空、为零、负数、非整数或超出可接受的整数范围 | 400 Bad Request | 页码必须为正整数 |
-| category_id 为空、非正整数或超出数据库 INT 标识范围 | 400 Bad Request | 分类标识必须为正整数 |
-| category_id 格式合法，但分类不存在 | 404 Not Found | 分类不存在 |
+| categoryId 为空、非正整数或超出数据库 INT 标识范围 | 400 Bad Request | 分类标识必须为正整数 |
+| categoryId 格式合法，但分类不存在 | 404 Not Found | 分类不存在 |
 | 系统内部错误 | 500 Internal Server Error | 系统繁忙，请稍后重试 |
 
 失败时沿用统一响应：status 为 0，message 为相应提示，data 为 null。参数格式不合法时先返回 400，不继续按该值查询资源；省略参数与传空值不同。
@@ -586,10 +588,10 @@ total 不因当前页为空而清零，也不自动跳回第 1 页。
 ### 5.7 后续接口测试清单
 
 - [ ] 游客不携带 JWT 查询成功，返回 200。
-- [ ] 不传参数时查询全部分类的第 1 页，page_size 为 10，每页最多 10 条。
+- [ ] 不传参数时查询全部分类的第 1 页，pageSize 为 10，每页最多 10 条。
 - [ ] 分类筛选后只返回指定分类的文章，total 只统计该分类文章。
-- [ ] 不传 category_id 时，total 统计全部文章，返回结果仍受分页限制。
-- [ ] 发布时间倒序；同一时间的文章按 article_id 倒序排列。
+- [ ] 不传 categoryId 时，total 统计全部文章，返回结果仍受分页限制。
+- [ ] 发布时间倒序；同一时间的文章按 articleId 倒序排列。
 - [ ] 摘要长度暂定最多 100 个字符；短正文返回全部，长正文截取，原正文不被修改。
 - [ ] total 为 23 时请求第 4 页：items 为 []，total 仍为 23，page 仍为 4。
 - [ ] 分类存在但没有文章：返回 200、items 为 []、total 为 0。
@@ -607,7 +609,7 @@ total 不因当前页为空而清零，也不自动跳回第 1 页。
 | --- | --- |
 | 用途 | 根据文章标识查询一篇公开文章的完整信息 |
 | HTTP 方法 | GET |
-| 路径模板 | /articles/{article_id} |
+| 路径模板 | /articles/{articleId} |
 | 是否需要登录 | 否，游客可访问 |
 | 请求体 | 无 |
 | 成功 HTTP 状态码 | 200 OK |
@@ -616,7 +618,7 @@ total 不因当前页为空而清零，也不自动跳回第 1 页。
 
 | 参数 | 类型 | 是否必填 | 校验规则 |
 | --- | --- | --- | --- |
-| article_id | integer | 是 | 必须为正整数且在数据库 INT 标识范围内 |
+| articleId | integer | 是 | 必须为正整数且在数据库 INT 标识范围内 |
 
 花括号内是参数名；实际请求时用具体值替换，不携带花括号。本接口没有查询参数。
 
@@ -637,43 +639,43 @@ HTTP 状态码：`200 OK`
   "status": 1,
   "message": "查询成功",
   "data": {
-    "article_id": 123,
+    "articleId": 123,
     "title": "我的第一篇博客",
     "author": {
-      "user_id": 7,
-      "user_name": "Alice"
+      "userId": 7,
+      "userName": "Alice"
     },
     "body": "今天开始独立开发 BlogHub，记录自己的学习过程。",
     "category": {
-      "category_id": 3,
-      "name": "学习记录"
+      "categoryId": 3,
+      "categoryName": "学习记录"
     },
-    "create_time": "2026-11-02T16:00:00+08:00",
-    "update_time": "2026-11-02T16:30:00+08:00"
+    "createTime": "2026-11-02T16:00:00+08:00",
+    "updateTime": "2026-11-02T16:30:00+08:00"
   }
 }
 ```
 
 | 字段 | JSON 类型 | 含义 |
 | --- | --- | --- |
-| data.article_id | integer | 文章唯一标识 |
+| data.articleId | integer | 文章唯一标识 |
 | data.title | string | 文章标题 |
-| data.author.user_id | integer | 作者标识 |
-| data.author.user_name | string | 作者用户名，保留大小写 |
+| data.author.userId | integer | 作者标识 |
+| data.author.userName | string | 作者用户名，保留大小写 |
 | data.body | string | 完整正文，不截断为摘要 |
-| data.category.category_id | integer | 分类标识 |
-| data.category.name | string | 分类名称 |
-| data.create_time | string | 发布时间，修改文章时不改变 |
-| data.update_time | string | 最近修改时间，首次发布时与发布时间一致 |
+| data.category.categoryId | integer | 分类标识 |
+| data.category.categoryName | string | 分类名称 |
+| data.createTime | string | 发布时间，修改文章时不改变 |
+| data.updateTime | string | 最近修改时间，首次发布时与发布时间一致 |
 
-详情的 data 是单个对象，不包含 page、page_size、total、items 等分页字段。不返回 summary，评论由独立接口查询；作者信息不包含密码、密码摘要或登录令牌。
+详情的 data 是单个对象，不包含 page、pageSize、total、items 等分页字段。不返回 summary，评论由独立接口查询；作者信息不包含密码、密码摘要或登录令牌。
 
 ### 6.5 失败情况
 
 | 场景 | HTTP 状态码 | message 示例 |
 | --- | --- | --- |
-| article_id 为 abc、零、负数、非整数或超出数据库 INT 标识范围 | 400 Bad Request | 文章标识必须为正整数 |
-| article_id 合法，但文章不存在或已删除 | 404 Not Found | 文章不存在 |
+| articleId 为 abc、零、负数、非整数或超出数据库 INT 标识范围 | 400 Bad Request | 文章标识必须为正整数 |
+| articleId 合法，但文章不存在或已删除 | 404 Not Found | 文章不存在 |
 | 系统内部错误 | 500 Internal Server Error | 系统繁忙，请稍后重试 |
 
 先校验标识格式，再查询文章。文章不存在时的响应示例，HTTP 状态码为 404：
@@ -691,7 +693,7 @@ HTTP 状态码：`200 OK`
 ### 6.6 后续接口测试清单
 
 - [ ] 游客查询已有文章：返回 200，data 为单个文章对象。
-- [ ] 返回 article_id、标题、作者标识及用户名、完整正文、分类标识及名称、发布时间和修改时间。
+- [ ] 返回 articleId、标题、作者标识及用户名、完整正文、分类标识及名称、发布时间和修改时间。
 - [ ] 正文超过 100 个字符时，详情仍返回完整正文，与列表摘要区分。
 - [ ] 时间使用统一格式和时区；修改文章后发布时间不变，修改时间更新。
 - [ ] GET /articles/abc、/articles/0、/articles/-1 及标识超出 INT 范围时返回 400。
@@ -706,9 +708,9 @@ HTTP 状态码：`200 OK`
 
 | 项目 | 约定 |
 | --- | --- |
-| HTTP 方法与路径 | PUT /articles/{article_id} |
+| HTTP 方法与路径 | PUT /articles/{articleId} |
 | 身份与权限 | 必须携带有效 JWT，且当前用户必须是文章作者 |
-| 路径参数 | article_id，必填，32 位正整数 |
+| 路径参数 | articleId，必填，32 位正整数 |
 | 查询参数 | 无 |
 | 请求格式 | Content-Type: application/json |
 | 成功状态码 | 200 OK |
@@ -719,7 +721,7 @@ HTTP 状态码：`200 OK`
 | --- | --- | --- | --- |
 | title | string | 是 | 1–50 个字符，不能全部为空白 |
 | body | string | 是 | 1–1000 个字符，不能全部为空白 |
-| category_id | integer | 是 | 32 位正整数，对应分类必须存在 |
+| categoryId | integer | 是 | 32 位正整数，对应分类必须存在 |
 
 缺失字段、null、类型错误、空字符串或纯空白文本均返回 400。请求体只接受上表字段，不允许指定或修改作者、文章标识和时间字段。
 
@@ -735,7 +737,7 @@ Content-Type: application/json
 {
   "title": "我的第一篇博客（修订）",
   "body": "今天完善了 BlogHub 的需求和接口设计。",
-  "category_id": 3
+  "categoryId": 3
 }
 ```
 
@@ -789,9 +791,9 @@ Content-Type: application/json
 
 | 项目 | 约定 |
 | --- | --- |
-| HTTP 方法与路径 | DELETE /articles/{article_id} |
+| HTTP 方法与路径 | DELETE /articles/{articleId} |
 | 身份与权限 | 必须携带有效 JWT，且当前用户必须是文章作者 |
-| 路径参数 | article_id，必填，32 位正整数 |
+| 路径参数 | articleId，必填，32 位正整数 |
 | 查询参数／请求体 | 无 |
 | 成功状态码 | 200 OK |
 
@@ -829,7 +831,7 @@ Authorization: Bearer <token>
 
 | 场景 | HTTP 状态码 | message 示例 |
 | --- | --- | --- |
-| article_id 非法 | 400 | 文章标识必须为正整数 |
+| articleId 非法 | 400 | 文章标识必须为正整数 |
 | JWT 缺失、无效或过期 | 401 | 请先登录或重新登录 |
 | 当前用户不是文章作者 | 403 | 无权删除该文章 |
 | 文章不存在或已删除 | 404 | 文章不存在 |
@@ -856,7 +858,7 @@ Authorization: Bearer <token>
 | 身份与权限 | 公开，无需 JWT |
 | 路径参数／查询参数／请求体 | 均无 |
 | 分页 | 本周不分页，一次返回全部预置分类 |
-| 排序 | 暂按 category_id 升序，作为补充建议 |
+| 排序 | 暂按 categoryId 升序，作为补充建议 |
 | 成功状态码 | 200 OK |
 
 ### 9.2 请求与成功响应
@@ -874,15 +876,15 @@ GET /categories
   "data": {
     "items": [
       {
-        "category_id": 3,
-        "name": "学习记录"
+        "categoryId": 3,
+        "categoryName": "学习记录"
       }
     ]
   }
 }
 ```
 
-data.items 为数组，每项包含整数 category_id 和字符串 name；没有分类时仍返回 200，data 为 `{"items": []}`，不得返回 null 或 404。该接口不返回分页字段。
+data.items 为数组，每项包含整数 categoryId 和字符串 categoryName；没有分类时仍返回 200，data 为 `{"items": []}`，不得返回 null 或 404。该接口不返回分页字段。
 
 系统内部错误返回 500，响应为 status 为 0、message 为通用错误提示、data 为 null。
 
@@ -898,9 +900,9 @@ data.items 为数组，每项包含整数 category_id 和字符串 name；没有
 
 | 项目 | 约定 |
 | --- | --- |
-| HTTP 方法与路径 | POST /articles/{article_id}/comments |
+| HTTP 方法与路径 | POST /articles/{articleId}/comments |
 | 身份与权限 | 已登录用户可对存在的公开文章评论，无需是文章作者 |
-| 路径参数 | article_id，必填，32 位正整数 |
+| 路径参数 | articleId，必填，32 位正整数 |
 | 查询参数 | 无 |
 | 请求格式 | Content-Type: application/json |
 | 成功状态码 | 201 Created |
@@ -910,7 +912,7 @@ data.items 为数组，每项包含整数 category_id 和字符串 name；没有
 | text | string | 是 | 1–500 个字符，不能全部为空白 |
 
 - 缺少 text、null、类型错误、空字符串、纯空白或超过长度上限时返回 400；正常空格和换行允许保留。
-- 请求体只接受 text；文章标识来自路径，评论者标识来自验证通过的 JWT，不接受请求体中的 article_id、user_id 等未定义字段。
+- 请求体只接受 text；文章标识来自路径，评论者标识来自验证通过的 JWT，不接受请求体中的 articleId、userId 等未定义字段。
 - 目标文章必须存在且未删除。评论标识由数据库生成，发布时间由服务端／数据库确定。
 
 ### 10.2 请求与成功响应
@@ -934,12 +936,12 @@ Content-Type: application/json
   "status": 1,
   "message": "评论发布成功",
   "data": {
-    "comment_id": 456
+    "commentId": 456
   }
 }
 ```
 
-data.comment_id 为新评论的整数标识。成功响应不返回密码、密码摘要或登录令牌。
+data.commentId 为新评论的整数标识。成功响应不返回密码、密码摘要或登录令牌。
 
 ### 10.3 失败情况与处理顺序
 
@@ -947,7 +949,7 @@ data.comment_id 为新评论的整数标识。成功响应不返回密码、密�
 
 | 场景 | HTTP 状态码 | message 示例 |
 | --- | --- | --- |
-| article_id 或请求体不合法 | 400 | 请求参数不合法 |
+| articleId 或请求体不合法 | 400 | 请求参数不合法 |
 | JWT 缺失、无效或过期 | 401 | 请先登录或重新登录 |
 | 文章不存在或已删除 | 404 | 文章不存在 |
 | 系统内部错误 | 500 | 系统繁忙，请稍后重试 |
@@ -956,11 +958,11 @@ data.comment_id 为新评论的整数标识。成功响应不返回密码、密�
 
 ### 10.4 后续接口测试清单
 
-- [ ] 已登录用户对已有文章发表评论：返回 201 和 comment_id；评论者为当前登录用户。
+- [ ] 已登录用户对已有文章发表评论：返回 201 和 commentId；评论者为当前登录用户。
 - [ ] 文章作者与其他已登录用户均可发表评论，游客返回 401。
 - [ ] 内容缺失、null、类型错误、空字符串、纯空白或 501 个字符：返回 400，不新增评论。
 - [ ] 内容为 1 或 500 个字符且其余条件合法：允许发布。
-- [ ] 请求体提交 user_id 等未定义字段：返回 400，不能冒充其他评论者。
+- [ ] 请求体提交 userId 等未定义字段：返回 400，不能冒充其他评论者。
 - [ ] 文章标识非法返回 400，文章不存在或已删除返回 404。
 - [ ] 发布后能在该文章的评论列表中查询到正确内容、评论者和发布时间。
 
@@ -970,12 +972,12 @@ data.comment_id 为新评论的整数标识。成功响应不返回密码、密�
 
 | 项目 | 约定 |
 | --- | --- |
-| HTTP 方法与路径 | GET /articles/{article_id}/comments |
+| HTTP 方法与路径 | GET /articles/{articleId}/comments |
 | 身份与权限 | 公开，无需 JWT |
-| 路径参数 | article_id，必填，32 位正整数 |
+| 路径参数 | articleId，必填，32 位正整数 |
 | 查询参数／请求体 | 无 |
 | 分页 | 本周不分页，返回该文章的全部评论 |
-| 排序 | create_time 正序，时间相同时按 comment_id 正序 |
+| 排序 | createTime 正序，时间相同时按 commentId 正序 |
 | 成功状态码 | 200 OK |
 
 ### 11.2 请求与成功响应
@@ -993,13 +995,13 @@ GET /articles/123/comments
   "data": {
     "items": [
       {
-        "comment_id": 456,
+        "commentId": 456,
         "author": {
-          "user_id": 7,
-          "user_name": "Alice"
+          "userId": 7,
+          "userName": "Alice"
         },
         "text": "这篇学习记录很清楚。",
-        "create_time": "2026-11-02T17:00:00+08:00"
+        "createTime": "2026-11-02T17:00:00+08:00"
       }
     ]
   }
@@ -1008,11 +1010,11 @@ GET /articles/123/comments
 
 | 列表项字段 | JSON 类型 | 含义 |
 | --- | --- | --- |
-| comment_id | integer | 评论唯一标识 |
-| author.user_id | integer | 评论者标识 |
-| author.user_name | string | 评论者用户名，保留大小写 |
+| commentId | integer | 评论唯一标识 |
+| author.userId | integer | 评论者标识 |
+| author.userName | string | 评论者用户名，保留大小写 |
 | text | string | 完整评论内容 |
-| create_time | string | 评论发布时间，采用通用时间格式 |
+| createTime | string | 评论发布时间，采用通用时间格式 |
 
 此处 author 表示评论者，不是文章作者。响应没有分页字段，不返回评论者的密码、密码摘要或登录令牌。
 
@@ -1034,7 +1036,7 @@ GET /articles/123/comments
 
 | 场景 | HTTP 状态码 | message 示例 |
 | --- | --- | --- |
-| article_id 非法 | 400 | 文章标识必须为正整数 |
+| articleId 非法 | 400 | 文章标识必须为正整数 |
 | 文章不存在或已删除 | 404 | 文章不存在 |
 | 系统内部错误 | 500 | 系统繁忙，请稍后重试 |
 
@@ -1044,7 +1046,7 @@ GET /articles/123/comments
 
 - [ ] 游客可查询评论，返回 200，且只包含目标文章的评论。
 - [ ] 每条评论包含标识、评论者标识和用户名、内容、发布时间。
-- [ ] 按发布时间正序，同一时间按 comment_id 正序排列。
+- [ ] 按发布时间正序，同一时间按 commentId 正序排列。
 - [ ] 文章存在但没有评论：返回 200 和 items 为 []，不返回 null。
 - [ ] 文章标识非法返回 400；文章不存在或已删除返回 404。
 - [ ] 本周不分页，不返回分页字段或敏感账号信息。
