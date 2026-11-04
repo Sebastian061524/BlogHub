@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sebastian.bloghub.mapper.ArticleMapper">
+    <resultMap id="articleDetailMap" type="com.sebastian.bloghub.vo.ArticleDetailVO">
+        <id column="id" property="articleId"/>
+        <result column="title" property="title"/>
+        <result column="body" property="body"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <association property="author" javaType="com.sebastian.bloghub.vo.AuthorVO">
+            <id column="user_id" property="userId"/>
+            <result column="user_name" property="userName"/>
+        </association>
+        <association property="category" javaType="com.sebastian.bloghub.vo.CategoryVO">
+            <id column="category_id" property="categoryId"/>
+            <result column="category_name" property="categoryName"/>
+        </association>
+    </resultMap>
+    <insert id="insert" parameterType="com.sebastian.bloghub.entity.Article" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO blog_article (user_id, title, body, category_id)
+        VALUES (#{userId}, #{title}, #{body}, #{categoryId})
+    </insert>
+
+    <select id="findDetailById" resultMap="articleDetailMap">
+        SELECT
+            a.id,
+            a.title,
+            a.body,
+            a.user_id,
+            u.user_name,
+            a.category_id,
+            c.category_name,
+            a.create_time,
+            a.update_time
+        FROM blog_article a
+                 LEFT JOIN blog_user     u ON a.user_id     = u.id
+                 INNER JOIN blog_category c ON a.category_id = c.id
+        WHERE a.id = #{articleId};
+    </select>
+
+    <update id="update">
+        update blog_article
+        set title = #{title},
+            body  = #{body},
+            category_id = #{categoryId},
+            update_time = #{updateTime}
+        where id = #{id} AND user_id = #{userId}
+    </update>
+
+    <delete id="deleteByIdAndUserId">
+        delete from blog_article where id = #{articleId} and user_id = #{userId}
+    </delete>
+</mapper>

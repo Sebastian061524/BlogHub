@@ -1,6 +1,6 @@
 # BlogHub
 
-Java 后端独立项目练习。目前完成 Day 2 的工程初始化、数据库连接、统一响应、全局异常处理、注册登录基础流程及 JWT 签发与解析。文章、评论、请求身份认证与作者权限尚待实现。
+Java 后端独立项目练习。目前完成 Day 3：注册登录、JWT 请求认证、文章新增／详情／修改／删除、作者权限，以及删除文章与评论的事务处理。文章列表分页、分类筛选、分类列表及评论发布／查询接口尚待实现。
 
 ## 当前内容
 
@@ -9,8 +9,10 @@ Java 后端独立项目练习。目前完成 Day 2 的工程初始化、数据�
 - [接口设计](bloghub/docs/api.md)：注册登录、文章 CRUD、分类列表、评论发布与查询，共 10 个接口。
 - [测试记录](bloghub/docs/test-cases.md)：自动化测试与 Apifox 手动验证结果，以及尚未覆盖的场景。
 - [Day 2 复盘](bloghub/docs/day2-review.md)：当天学习成果、协作情况与次日复习目标。
+- [Day 3 复盘](bloghub/docs/day3-review.md)：文章 CRUD、Java 基础、算法练习及次日复习安排。
 - [两数之和练习](algorithm/TwoSums.java)：保留暴力法和 HashMap 法，读取一份输入后分别输出两种结果。
 - [有效的字母异位词练习](algorithm/isAnagram.java)：保留 HashMap 和固定长度数组两种做法，输入限定为小写英文字母。
+- [存在重复元素练习](algorithm/containsDuplicate.java)：使用 HashSet 判断重复，平均时间 O(n)，最坏额外空间 O(n)。
 
 ## 开发环境与目录
 
@@ -88,14 +90,22 @@ mvn spring-boot:run
 
 也可以在 IDEA 中运行 `com.sebastian.bloghub.BloghubApplication`。默认地址为 `http://localhost:8080`。
 
-在 Apifox 中选择 JSON 请求体，设置 `Content-Type: application/json`：
+在 Apifox 中验证以下已实现接口；有请求体的接口选择 JSON，并设置 `Content-Type: application/json`。GET 和 DELETE 不需要请求体。
 
 | 接口 | 成功结果 | 已验证的异常结果 |
 | --- | --- | --- |
 | `POST /users` | 201，注册成功，`data: null` | 400 参数错误、409 用户名已存在 |
 | `POST /auth/login` | 200，返回 `token` 与 `expiresIn` | 400 参数错误、401 用户名或密码错误 |
+| `POST /articles` | 201，返回 `articleId` | 400 参数错误、401 未登录、404 分类不存在 |
+| `GET /articles/{articleId}` | 200，返回包含作者、分类的完整详情 | 400 非法 ID、404 文章不存在 |
+| `PUT /articles/{articleId}` | 200，修改成功，`data: null` | 400 参数错误、401 未登录、403 非作者、404 文章或分类不存在 |
+| `DELETE /articles/{articleId}` | 200，删除成功，`data: null` | 400 非法 ID、401 未登录、403 非作者、404 文章不存在 |
 
-两者的 JSON 字段均为 `userName`、`password`。用户名先去除首尾空白再校验，区分大小写；密码不做裁剪。具体长度和字符要求见接口文档。
+注册、登录的 JSON 字段均为 `userName`、`password`。用户名先去除首尾空白再校验，区分大小写；密码不做裁剪。文章新增、修改均提交 `title`、`body`、`categoryId`，具体校验规则见接口文档。
+
+文章详情公开访问。文章写接口通过 `Authorization: Bearer <token>` 携带登录返回的凭证；拦截器验证后，将用户 ID 存入 UserContext 的 ThreadLocal，Service 读取身份，请求结束时清理。修改、删除只允许作者操作，SQL 也包含作者条件；删除 Service 在同一个事务中先删评论，再删文章。
+
+详情中的 `author`、`category` 为嵌套对象，由 MyBatis XML 的 resultMap／association 映射。Java 时间字段使用 LocalDateTime，JSON 格式约定为 `yyyy-MM-dd'T'HH:mm:ss`，不附加偏移量，按 Asia/Shanghai 本地时间解释。
 
 响应统一为 `status`、`message`、`data`，其中 `status: 1` 表示成功、`status: 0` 表示失败，与 HTTP 状态码分别检查。Apifox 的异常用例也应配置对应的预期 HTTP 状态码。
 
@@ -107,6 +117,7 @@ mvn spring-boot:run
 
 - 恰好三个预置分类；大小写不同的 `Alice`、`alice` 两个用户。
 - 通过注册接口创建 `Day2User01`，密码使用测试源码中约定的公开练习值 `BlogHub!2026`，由应用生成 BCrypt 哈希。此账号仅用于本地测试。
+- 部分课堂测试还使用用户 ID 1、4（当前库中 Day2User01 的 ID 为 4）及分类 ID 1、2；换库时需要核对或调整测试数据。文章详情和修改用例已自行创建临时文章，不再依赖文章 7 的内容。
 - 测试中的不存在用户 `NotExistUser`、`112233` 及被拒绝注册的 `InvalidPasswordTest` 未被其他操作创建。
 
 先启动应用完成测试账号注册，再在另一个已设置上述两个环境变量的终端中，从仓库根目录执行：
@@ -116,9 +127,9 @@ Set-Location .\bloghub\bloghub
 mvn test
 ```
 
-依赖已缓存时可使用 `mvn -o test`。报告位于工程目录的 `target/surefire-reports`。新增注册写入用例使用事务回滚；现有测试会检查真实数据库，不应直接指向业务数据库。
+依赖已缓存时可使用 `mvn -o test`；需要清除旧编译产物时运行 `mvn -o clean test`。报告位于工程目录的 `target/surefire-reports`。注册和文章写入等测试使用事务回滚；删除回滚测试自身不开启事务，会提交临时数据并在 finally 中清理。测试会访问真实数据库，应使用本地学习库。
 
-最近一次实际运行结果及覆盖范围见测试记录。登录 HTTP 的五项 Apifox 验证单独记录，不等同于五项自动化测试。
+Day 3 已运行 32 项自动化测试，包含删除失败后的事务回滚；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
 
 ## 运行算法练习
 
@@ -148,4 +159,6 @@ HashMap 法索引：[0, 1]
 
 两数之和的两种做法均已验证普通样例、重复值、负数、零和题目数值边界。异位词练习可使用 `javac -encoding UTF-8 algorithm/isAnagram.java` 编译，再执行 `java -cp algorithm isAnagram`；当前 main 演示 HashMap 版本，数组版本保留在 `isAnagram2` 中。
 
-下一步独立复习 JWT 生成、解析与校验，再进入文章 CRUD。后续补齐请求身份认证、作者权限、分类筛选与分页、评论、多表删除事务，以及异常分类和边界测试。当前未对受保护接口、篡改或过期 Token 的拒绝行为完成验收。
+存在重复元素练习可使用 `javac -encoding UTF-8 algorithm/containsDuplicate.java` 编译，再执行 `java -cp algorithm containsDuplicate`；当前 main 输出示例 `[1, 2, 3, 1]` 的结果 `true`。
+
+Day 4 先独立复习 String 与 StringBuilder，再实现文章分页、分类筛选及评论发布／查询等计划内容。后续仍需补齐 Token 篡改／过期请求、用户上下文清理的专项测试、JSON 解析与不支持的 Content-Type 等异常分类，以及其余业务边界验证。当前结果不代表整个 MVP 已验收完成。

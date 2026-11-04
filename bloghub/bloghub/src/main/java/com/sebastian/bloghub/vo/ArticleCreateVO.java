@@ -1,0 +1,8 @@
+package com.sebastian.bloghub.vo;
+
+import lombok.Data;
+
+@Data
+public class ArticleCreateVO {
+    private Integer articleId;
+}

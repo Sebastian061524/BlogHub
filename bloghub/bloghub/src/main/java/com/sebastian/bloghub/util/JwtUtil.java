@@ -45,4 +45,10 @@ public class JwtUtil {
     public Long getExpirationSeconds() {
         return expirationSeconds;
     }
+
+    public Integer getUserId(String token){
+        Claims claims = parseToken(token);
+        String userId = claims.getSubject();
+        return Integer.parseInt(userId);
+    }
 }
