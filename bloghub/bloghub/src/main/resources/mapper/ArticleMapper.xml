@@ -16,6 +16,16 @@
             <result column="category_name" property="categoryName"/>
         </association>
     </resultMap>
+    <resultMap id="articleListItemMap" type="com.sebastian.bloghub.vo.ArticleListItemVO">
+        <id column="id" property="articleId"/>
+        <result column="title" property="title"/>
+        <result column="summary" property="summary"></result>
+        <result column="create_time" property="createTime"/>
+        <association property="author" javaType="com.sebastian.bloghub.vo.AuthorVO">
+            <id column="user_id" property="userId"/>
+            <result column="user_name" property="userName"/>
+        </association>
+    </resultMap>
     <insert id="insert" parameterType="com.sebastian.bloghub.entity.Article" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO blog_article (user_id, title, body, category_id)
         VALUES (#{userId}, #{title}, #{body}, #{categoryId})
@@ -50,4 +60,27 @@
     <delete id="deleteByIdAndUserId">
         delete from blog_article where id = #{articleId} and user_id = #{userId}
     </delete>
+
+    <select id="countByCategory" resultType="java.lang.Long">
+        select count(*) from blog_article
+        <where>
+            <if test="categoryId != null">
+                category_id = #{categoryId}
+            </if>
+        </where>
+    </select>
+
+    <select id="findPage" resultMap="articleListItemMap">
+        SELECT a.id, a.title, a.user_id, u.user_name, LEFT(a.body, 100) AS summary, a.create_time
+        FROM blog_article a
+        LEFT JOIN blog_user u ON a.user_id = u.id
+        <where>
+            <if test="categoryId != null">
+                category_id = #{categoryId}
+            </if>
+        </where>
+        ORDER BY a.create_time DESC, a.id DESC
+        LIMIT #{offset}, #{pageSize};
+    </select>
+
 </mapper>

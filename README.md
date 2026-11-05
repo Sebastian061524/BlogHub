@@ -1,6 +1,6 @@
 # BlogHub
 
-Java 后端独立项目练习。目前完成 Day 3：注册登录、JWT 请求认证、文章新增／详情／修改／删除、作者权限，以及删除文章与评论的事务处理。文章列表分页、分类筛选、分类列表及评论发布／查询接口尚待实现。
+Java 后端独立项目练习。目前推进至 Day 4：已实现注册登录、JWT 请求认证、文章 CRUD 与作者权限、文章分页和分类筛选、分类列表、评论发布与查询，以及删除文章与评论的事务处理。核心接口已有基本验证，后续继续完善错误处理与边界测试。
 
 ## 当前内容
 
@@ -10,9 +10,11 @@ Java 后端独立项目练习。目前完成 Day 3：注册登录、JWT 请求�
 - [测试记录](bloghub/docs/test-cases.md)：自动化测试与 Apifox 手动验证结果，以及尚未覆盖的场景。
 - [Day 2 复盘](bloghub/docs/day2-review.md)：当天学习成果、协作情况与次日复习目标。
 - [Day 3 复盘](bloghub/docs/day3-review.md)：文章 CRUD、Java 基础、算法练习及次日复习安排。
+- [Day 4 复盘](bloghub/docs/day4-review.md)：分页、分类和评论功能、集合基础、合并数组与验证记录。
 - [两数之和练习](algorithm/TwoSums.java)：保留暴力法和 HashMap 法，读取一份输入后分别输出两种结果。
 - [有效的字母异位词练习](algorithm/isAnagram.java)：保留 HashMap 和固定长度数组两种做法，输入限定为小写英文字母。
 - [存在重复元素练习](algorithm/containsDuplicate.java)：使用 HashSet 判断重复，平均时间 O(n)，最坏额外空间 O(n)。
+- [合并两个有序数组练习](algorithm/mergeTwoArrayList.java)：从后向前三指针合并，时间 O(m + n)，额外空间 O(1)。
 
 ## 开发环境与目录
 
@@ -100,10 +102,16 @@ mvn spring-boot:run
 | `GET /articles/{articleId}` | 200，返回包含作者、分类的完整详情 | 400 非法 ID、404 文章不存在 |
 | `PUT /articles/{articleId}` | 200，修改成功，`data: null` | 400 参数错误、401 未登录、403 非作者、404 文章或分类不存在 |
 | `DELETE /articles/{articleId}` | 200，删除成功，`data: null` | 400 非法 ID、401 未登录、403 非作者、404 文章不存在 |
+| `GET /articles` | 200，返回 page、pageSize、total、items | 400 非法页码／分类参数、404 分类不存在 |
+| `GET /categories` | 200，返回全部分类的 items，按分类 ID 升序 | 无业务请求参数 |
+| `POST /articles/{articleId}/comments` | 201，返回 commentId | 400 评论参数错误、401 未登录、404 文章不存在 |
+| `GET /articles/{articleId}/comments` | 200，返回评论 items，包含嵌套 author | 400 非法文章 ID、404 文章不存在 |
 
 注册、登录的 JSON 字段均为 `userName`、`password`。用户名先去除首尾空白再校验，区分大小写；密码不做裁剪。文章新增、修改均提交 `title`、`body`、`categoryId`，具体校验规则见接口文档。
 
-文章详情公开访问。文章写接口通过 `Authorization: Bearer <token>` 携带登录返回的凭证；拦截器验证后，将用户 ID 存入 UserContext 的 ThreadLocal，Service 读取身份，请求结束时清理。修改、删除只允许作者操作，SQL 也包含作者条件；删除 Service 在同一个事务中先删评论，再删文章。
+文章详情、文章列表、分类列表和评论列表公开访问。文章写接口和发表评论通过 `Authorization: Bearer <token>` 携带登录返回的凭证；拦截器验证后，将用户 ID 存入 UserContext 的 ThreadLocal，Service 读取身份，请求结束时清理。修改、删除只允许作者操作，SQL 也包含作者条件；删除 Service 在同一个事务中先删评论，再删文章。登录用户可以评论其他用户的文章，请求体只提交 text，文章 ID 来自路径、评论者 ID 来自登录上下文。
+
+文章列表支持可选查询参数 page（默认 1）和 categoryId（不传查询所有分类），每页固定 10 条，按创建时间和文章 ID 降序；摘要取正文前 100 字符。传入空参数与省略参数不同，空值返回 400。评论列表不分页，按创建时间和评论 ID 升序；已有文章没有评论时 items 返回空数组。
 
 详情中的 `author`、`category` 为嵌套对象，由 MyBatis XML 的 resultMap／association 映射。Java 时间字段使用 LocalDateTime，JSON 格式约定为 `yyyy-MM-dd'T'HH:mm:ss`，不附加偏移量，按 Asia/Shanghai 本地时间解释。
 
@@ -117,7 +125,8 @@ mvn spring-boot:run
 
 - 恰好三个预置分类；大小写不同的 `Alice`、`alice` 两个用户。
 - 通过注册接口创建 `Day2User01`，密码使用测试源码中约定的公开练习值 `BlogHub!2026`，由应用生成 BCrypt 哈希。此账号仅用于本地测试。
-- 部分课堂测试还使用用户 ID 1、4（当前库中 Day2User01 的 ID 为 4）及分类 ID 1、2；换库时需要核对或调整测试数据。文章详情和修改用例已自行创建临时文章，不再依赖文章 7 的内容。
+- 部分课堂测试还使用用户 ID 1、4（当前库中 Day2User01 的 ID 为 4）及分类 ID 1、2；换库时需要核对或调整测试数据。文章详情和修改用例已自行创建临时文章；评论测试仍依赖文章 7 存在，不依赖它的标题或正文。
+- 分类 ID 4、文章 ID 999 在当前异常测试中应不存在；这些依赖尚未全部替换为自动准备的测试数据。
 - 测试中的不存在用户 `NotExistUser`、`112233` 及被拒绝注册的 `InvalidPasswordTest` 未被其他操作创建。
 
 先启动应用完成测试账号注册，再在另一个已设置上述两个环境变量的终端中，从仓库根目录执行：
@@ -129,7 +138,7 @@ mvn test
 
 依赖已缓存时可使用 `mvn -o test`；需要清除旧编译产物时运行 `mvn -o clean test`。报告位于工程目录的 `target/surefire-reports`。注册和文章写入等测试使用事务回滚；删除回滚测试自身不开启事务，会提交临时数据并在 finally 中清理。测试会访问真实数据库，应使用本地学习库。
 
-Day 3 已运行 32 项自动化测试，包含删除失败后的事务回滚；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
+Day 4 收尾于 2026-11-05 使用 JDK 17 执行 `mvn -o clean test`，46 项自动化测试全部通过，包含删除失败后的事务回滚及新增分页、分类、评论测试；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
 
 ## 运行算法练习
 
@@ -161,4 +170,6 @@ HashMap 法索引：[0, 1]
 
 存在重复元素练习可使用 `javac -encoding UTF-8 algorithm/containsDuplicate.java` 编译，再执行 `java -cp algorithm containsDuplicate`；当前 main 输出示例 `[1, 2, 3, 1]` 的结果 `true`。
 
-Day 4 先独立复习 String 与 StringBuilder，再实现文章分页、分类筛选及评论发布／查询等计划内容。后续仍需补齐 Token 篡改／过期请求、用户上下文清理的专项测试、JSON 解析与不支持的 Content-Type 等异常分类，以及其余业务边界验证。当前结果不代表整个 MVP 已验收完成。
+合并数组练习可使用 `javac -encoding UTF-8 algorithm/mergeTwoArrayList.java` 编译，再执行 `java -cp algorithm mergeTwoArrayList`；当前 main 展示合并 `[1,2,3]` 与 `[2,5,6]`。Day 4 收尾另用临时检查程序验证了 8 个用例，包括空数组、重复值和负数，全部通过。
+
+Day 5 先复习 ArrayList、LinkedList 和数组扩容，再继续完善 JWT、权限、输入校验与错误处理。后续仍需补齐 Token 篡改／过期请求、用户上下文清理专项测试、JSON 解析与不支持的 Content-Type 等异常分类，以及多条评论排序、文章跨页和摘要截断等业务边界。当前结果不代表整个 MVP 已验收完成。

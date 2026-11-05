@@ -6,4 +6,8 @@
         select count(*) from blog_category where id = #{categoryId}
     </select>
 
+    <select id="findAll" resultType="com.sebastian.bloghub.vo.CategoryVO">
+        select id as category_id, category_name from blog_category order by id ASC
+    </select>
+
 </mapper>

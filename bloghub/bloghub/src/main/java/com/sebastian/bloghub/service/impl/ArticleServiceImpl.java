@@ -10,12 +10,15 @@ import com.sebastian.bloghub.mapper.CategoryMapper;
 import com.sebastian.bloghub.mapper.CommentMapper;
 import com.sebastian.bloghub.service.ArticleService;
 import com.sebastian.bloghub.vo.ArticleDetailVO;
+import com.sebastian.bloghub.vo.ArticleListItemVO;
+import com.sebastian.bloghub.vo.ArticlePageVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class ArticleServiceImpl implements ArticleService {
@@ -111,5 +114,29 @@ public class ArticleServiceImpl implements ArticleService {
         if(delete != 1){
             throw new BusinessException(500, "删除失败");
         }
+    }
+
+    @Override
+    public ArticlePageVO getPage(Integer page, Integer categoryId) {
+        if(page == null || page <= 0){
+            throw new BusinessException(400, "页码必须为正整数");
+        }
+        if(categoryId != null && categoryId <= 0){
+            throw new BusinessException(400, "分类标识必须为正整数");
+        }
+        if(categoryId != null){
+            int count = categoryMapper.countById(categoryId);
+            if(count == 0){
+                throw new BusinessException(404, "分类不存在");
+            }
+        }
+        long offset = (page - 1L) * 10;
+        List<ArticleListItemVO> articles = articleMapper.findPage(categoryId, offset, 10);
+        ArticlePageVO articlePageVO = new ArticlePageVO();
+        articlePageVO.setPage(page);
+        articlePageVO.setPageSize(10);
+        articlePageVO.setTotal(articleMapper.countByCategory(categoryId));
+        articlePageVO.setItems(articles);
+        return articlePageVO;
     }
 }

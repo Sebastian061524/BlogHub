@@ -1,7 +1,31 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="com.sebastian.bloghub.mapper.CommentMapper">
+    <resultMap id="commentListItemMap" type="com.sebastian.bloghub.vo.CommentListItemVO">
+        <id property="commentId" column="id"/>
+        <result property="text" column="text"/>
+        <result property="createTime" column="create_time"/>
+        <association property="author" javaType="com.sebastian.bloghub.vo.AuthorVO">
+            <id property="userId" column="user_id"/>
+            <result property="userName" column="user_name"/>
+        </association>
+    </resultMap>
+
+
     <delete id="deleteByArticleId">
         delete from blog_comment where article_id = #{articleId}
     </delete>
+
+    <insert id="createComment" useGeneratedKeys="true" keyProperty="id">
+        insert into blog_comment (article_id, user_id, text)
+        values (#{articleId}, #{userId}, #{text})
+    </insert>
+
+    <select id="findByArticleId" resultMap="commentListItemMap">
+        SELECT c.id, c.text, c.create_time, c.user_id, u.user_name
+        FROM blog_comment c LEFT JOIN blog_user u ON c.user_id = u.id
+        WHERE c.article_id = #{articleId}
+        ORDER BY c.create_time ASC, c.id ASC
+    </select>
+
 </mapper>
