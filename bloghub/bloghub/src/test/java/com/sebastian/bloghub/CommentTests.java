@@ -25,6 +25,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 评论新增与列表查询的集成测试，分别检查Mapper落库和Service的登录、文章存在性要求。
+ * 依赖文章7、用户1和4及分类1；写入均处于测试事务内，结束后回滚。
+ * 直接调用Service时手动设置线程用户模拟认证身份，此处不等同于测试HTTP拦截器认证。
+ */
 @SpringBootTest
 public class CommentTests {
 
@@ -38,6 +43,9 @@ public class CommentTests {
     @Autowired
     private ArticleMapper articleMapper;
 
+    /**
+     * 准备属于文章7、用户4的评论并调用Mapper；按回填ID独立查库，断言正文、关联ID和创建时间落库正确。
+     */
     @Test
     @Transactional
     public void testCreateComment() {
@@ -59,6 +67,9 @@ public class CommentTests {
         assertNotNull(c.getCreateTime());
     }
 
+    /**
+     * 设置线程用户1，对文章7调用Service创建；按返回ID查库，断言正文、文章ID与当前作者身份正确。
+     */
     @Test
     @Transactional
     public void testCreateCommentsByArticleId() {
@@ -83,6 +94,9 @@ public class CommentTests {
         }
     }
 
+    /**
+     * 先移除线程身份，再提交合法评论；断言401业务异常，验证未登录用户不能创建评论。
+     */
     @Test
     @Transactional
     public void testCreateCommentsWithoutUserId() {
@@ -93,6 +107,9 @@ public class CommentTests {
         assertEquals(401, exception.getHttpStatus());
     }
 
+    /**
+     * 先断言文章999确实不存在，再以已登录用户创建评论；断言404，避免把认证失败误当文章不存在。
+     */
     @Test
     @Transactional
     public void testCreateCommentsWithWrongArticleId() {
@@ -109,6 +126,9 @@ public class CommentTests {
         }
     }
 
+    /**
+     * 为文章7插入专用评论，再查列表；按新主键定位并检查正文、作者与时间，最后要求找到该评论，防止循环未命中而假通过。
+     */
     @Test
     @Transactional
     public void testCommentList(){
@@ -135,6 +155,9 @@ public class CommentTests {
         assertTrue(found, "列表应包含刚插入的评论");
     }
 
+    /**
+     * 新建无评论文章并移除登录身份，再由Service查询评论；断言非null空列表，验证匿名读取空列表路径。
+     */
     @Test
     @Transactional
     void testCommentListWithNewArticle() {

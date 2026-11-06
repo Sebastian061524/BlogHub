@@ -1,15 +1,25 @@
+# Spring Boot配置树：应用名称和数据源属性由对应配置绑定读取。
 spring:
   application:
+    # 应用标识，供Spring应用配置及日志等场景使用。
     name: bloghub
+  # 连接本机bloghub数据库，账号和密码用于建立数据库连接。
   datasource:
     url: jdbc:mysql://localhost:3306/bloghub
     username: root
+    # 从外部属性或同名环境变量读取密码；文件不保存真实密码，也未设置默认值。
     password: ${BLOGHUB_DB_PASSWORD}
+# MyBatis配置：XML扫描路径与数据库列名到Java属性名的映射规则。
 mybatis:
+  # 扫描类路径mapper目录的XML，namespace再绑定相应Mapper接口。
   mapper-locations: classpath:mapper/*.xml
   configuration:
+    # 例如user_name映射userName；复杂嵌套对象仍由resultMap显式映射。
     map-underscore-to-camel-case: true
 
+# JwtUtil通过@Value读取下列属性，此配置本身不执行身份校验。
 jwt:
+  # 外部提供Base64编码的签名密钥，JwtUtil解码后用于HS256；Base64不是加密。
   secret-base64: ${BLOGHUB_JWT_SECRET}
+  # Token有效时长，单位秒；7200秒为2小时，用于计算到期时间。
   expiration-seconds: 7200

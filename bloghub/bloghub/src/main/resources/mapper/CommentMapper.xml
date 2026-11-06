@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<!-- 绑定CommentMapper接口，集中定义评论SQL与嵌套作者映射。 -->
 <mapper namespace="com.sebastian.bloghub.mapper.CommentMapper">
+    <!-- id映射commentId，association把联表用户字段组装为author对象。 -->
     <resultMap id="commentListItemMap" type="com.sebastian.bloghub.vo.CommentListItemVO">
         <id property="commentId" column="id"/>
         <result property="text" column="text"/>
@@ -12,15 +14,18 @@
     </resultMap>
 
 
+    <!-- 按文章清理评论，文章删除事务先执行此语句，以满足外键RESTRICT约束。 -->
     <delete id="deleteByArticleId">
         delete from blog_comment where article_id = #{articleId}
     </delete>
 
+    <!-- 自增主键回填Comment.id供创建接口返回，create_time由数据库默认值生成。 -->
     <insert id="createComment" useGeneratedKeys="true" keyProperty="id">
         insert into blog_comment (article_id, user_id, text)
         values (#{articleId}, #{userId}, #{text})
     </insert>
 
+    <!-- 查询指定文章的全部评论并左关联用户；按创建时间升序，再按主键升序稳定展示。 -->
     <select id="findByArticleId" resultMap="commentListItemMap">
         SELECT c.id, c.text, c.create_time, c.user_id, u.user_name
         FROM blog_comment c LEFT JOIN blog_user u ON c.user_id = u.id

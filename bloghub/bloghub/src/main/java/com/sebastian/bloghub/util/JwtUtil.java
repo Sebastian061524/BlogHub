@@ -11,11 +11,20 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.time.Instant;
 
+/**
+ * JWT 凭证工具：由 Spring 注入配置，统一负责签发、验签、过期检查和身份提取。
+ * 登录控制器在账号密码通过后调用生成方法，文章鉴权拦截器调用身份读取方法；本类不查询用户表。
+ */
 @Component
 public class JwtUtil {
+    // 密钥对象仅保留在服务端，用于 HS256 签名与验签；有效期单位为秒。
     private final SecretKey secretKey;
     private final long expirationSeconds;
 
+    /**
+     * 构造器从配置读取 Base64 编码的密钥和有效秒数，解码后创建 HMAC 密钥对象。
+     * Base64 只是配置值的编码形式；密钥不是放进 JWT 让客户端一起提交的字段。
+     */
     public JwtUtil(
             @Value("${jwt.secret-base64}") String secretBase64,
             @Value("${jwt.expiration-seconds}") long expirationSeconds) {
@@ -59,6 +68,9 @@ public class JwtUtil {
                 .getPayload();
     }
 
+    /**
+     * 向登录响应提供配置中的有效秒数；实际验签仍检查 JWT 的 expiration，不能只信任客户端倒计时。
+     */
     public Long getExpirationSeconds() {
         return expirationSeconds;
     }

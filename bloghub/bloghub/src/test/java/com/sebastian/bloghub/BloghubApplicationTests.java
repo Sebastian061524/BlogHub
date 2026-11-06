@@ -26,6 +26,12 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 应用基础集成测试：覆盖数据库查询、密码匹配、登录、JWT及文章增删改查的指定场景。
+ * 依赖预置用户、三个分类及其对应关系；固定数据断言不能直接套用到任意数据库。
+ * 测试注解@Transactional标记的方法回滚测试写入；UserContext是线程状态，需要在finally中另行清理。
+ * 各项断言只保证已检查的结果，不能据此声称全部业务分支或真实网络链路都被覆盖。
+ */
 @SpringBootTest
 class BloghubApplicationTests {
 
@@ -54,12 +60,18 @@ class BloghubApplicationTests {
     private ArticleService articleService;
 
 
+    /**
+     * 直接查询分类总数并断言为3，完成连接及预置数据的最小检查，不代表全部表结构验证。
+     */
     @Test
     void testJdbc(){
         Integer categoryCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM blog_category", Integer.class);
         assertEquals(3, categoryCount);
     }
 
+    /**
+     * 按预置名称查用户，断言对象、密码哈希及用户名映射存在，检查Mapper基本查询。
+     */
     @Test
     void testUserMapper(){
         User user = userMapper.findByUserName("Alice");
@@ -68,6 +80,9 @@ class BloghubApplicationTests {
         assertEquals("Alice", user.getUserName());
     }
 
+    /**
+     * 查询仅大小写不同的两个预置名称，断言ID不同，验证当前数据库与查询能区分这两个账户。
+     */
     @Test
     void testDifferentUser(){
         User user1 = userMapper.findByUserName("Alice");
@@ -79,12 +94,18 @@ class BloghubApplicationTests {
         assertNotEquals(user1.getId(), user2.getId());
     }
 
+    /**
+     * 以约定不存在的名称查询，断言返回null，验证Mapper无记录时的返回约定。
+     */
     @Test
     void testNotExistUser(){
         User user = userMapper.findByUserName("NotExistUser");
         assertNull(user);
     }
 
+    /**
+     * 读取预置测试账户的哈希；断言其不同于测试明文，且正确密码匹配、错误密码不匹配，验证编码器与种子哈希兼容。
+     */
     @Test
     void testPasswordEncoder(){
         User user = userMapper.findByUserName("Day2User01");
@@ -96,6 +117,9 @@ class BloghubApplicationTests {
         assertFalse(passwordEncoder.matches("123456", user.getPasswordHash()));
     }
 
+    /**
+     * 用预置测试账户准备登录DTO并调用Service；断言返回用户及其名称正确，验证成功登录路径。
+     */
     @Test
     void testLogin(){
         UserLoginDTO dto = new UserLoginDTO("Day2User01", "BlogHub!2026");
@@ -104,6 +128,9 @@ class BloghubApplicationTests {
         assertEquals("Day2User01", user.getUserName());
     }
 
+    /**
+     * 准备存在的用户名和错误测试密码；断言401与统一错误消息，验证密码不匹配的拒绝路径。
+     */
     @Test
     void testWrongPasswordLogin(){
         UserLoginDTO dto = new UserLoginDTO("Day2User01", "123456");
@@ -112,6 +139,9 @@ class BloghubApplicationTests {
         assertEquals("用户名或密码错误", ex.getMessage());
     }
 
+    /**
+     * 准备不存在的用户名；断言同样的401与错误消息，验证该场景使用统一登录失败反馈。
+     */
     @Test
     void testNotExistUserLogin(){
         UserLoginDTO dto = new UserLoginDTO("112233", "123456");
@@ -120,6 +150,9 @@ class BloghubApplicationTests {
         assertEquals("用户名或密码错误", ex.getMessage());
     }
     
+    /**
+     * 为正数用户ID签发后解析JWT；断言subject和时间字段，检查过期时间减签发时间为配置的两小时。
+     */
     @Test
     void testGenerateToken(){
         String token = jwtUtil.generateToken(123);
@@ -133,6 +166,9 @@ class BloghubApplicationTests {
                 claims.getExpiration().getTime() - claims.getIssuedAt().getTime());
     }
     
+    /**
+     * 分别以null、0和负数签发令牌，断言参数异常，验证用户ID基本前置校验。
+     */
     @Test
     void testGenerateTokenWithInvalidUserIds(){
         assertThrows(IllegalArgumentException.class, () -> jwtUtil.generateToken(null));
@@ -140,6 +176,9 @@ class BloghubApplicationTests {
         assertThrows(IllegalArgumentException.class, () -> jwtUtil.generateToken(-1));
     }
 
+    /**
+     * 为指定用户ID签发令牌后读取ID，断言还原为同一整数，验证subject转换的成功路径。
+     */
     @Test
     void testGetUserId(){
         String token = jwtUtil.generateToken(123);
@@ -147,6 +186,9 @@ class BloghubApplicationTests {
         assertEquals(123, userId);
     }
 
+    /**
+     * 直接插入专用文章，再用独立SQL读取字段；断言正数主键回填及作者、分类、标题正确，结束后由测试事务回滚。
+     */
     @Test
     @Transactional
     void testInsertArticle(){
@@ -166,6 +208,9 @@ class BloghubApplicationTests {
         assertEquals("Test Article", title);
     }
 
+    /**
+     * 对预置分类1与不存在的分类4计数，断言分别为1和0，验证存在性SQL的两种返回。
+     */
     @Test
     void testCountById(){
         int count = categoryMapper.countById(1);
@@ -174,6 +219,9 @@ class BloghubApplicationTests {
         assertEquals(0, count);
     }
 
+    /**
+     * 设置线程身份为用户1，以合法DTO创建文章；断言正数ID并查库确认作者来自当前身份，最后清理线程状态。
+     */
     @Test
     @Transactional
     void testCreateArticle1() {
@@ -193,6 +241,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 先移除线程身份，再用合法DTO创建；断言401及登录提示，排除字段错误对认证场景的干扰。
+     */
     @Test
     @Transactional
     void testCreateArticleWithoutUserId() {
@@ -210,6 +261,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 设置登录身份，使用不存在的分类4创建；断言404与分类不存在提示，定位分类校验失败。
+     */
     @Test
     @Transactional
     void testCreateArticleWithWrongCategoryId() {
@@ -227,6 +281,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 插入用户4、分类1的专用文章后查详情；逐项检查文章字段、关联作者和分类及时间映射，验证联表组装。
+     */
     @Test
     @Transactional
     void testQueryArticleDetail(){
@@ -246,6 +303,9 @@ class BloghubApplicationTests {
         assertNotNull(articleDetailVO.getUpdateTime());
     }
 
+    /**
+     * 先插入取得真实ID，再显式删除该行；按相同ID查询应为null，避免猜测某个ID不存在。
+     */
     @Test
     @Transactional
     void testQueryArticleDetailWithNotExistsId() {
@@ -254,6 +314,9 @@ class BloghubApplicationTests {
         assertNull(articleMapper.findDetailById(article.getId()));
     }
 
+    /**
+     * 以文章作者身份更新标题、正文和分类；回查断言新字段生效、创建时间与作者保持原值。
+     */
     @Test
     @Transactional
     void testUpdateArticle() {
@@ -278,6 +341,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 创建用户4的文章，以用户1请求更新；断言403并逐字段比较前后相同，验证拒绝后没有可见改动。
+     */
     @Test
     @Transactional
     void testUpdateArticleWithWrongUserId() {
@@ -306,6 +372,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 作者先更新一次，再重复相同更新；断言第二次不抛异常且字段正确，验证重复提交相同内容可接受。
+     */
     @Test
     @Transactional
     void testUpdateArticleWithoutUpdate(){
@@ -329,6 +398,10 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 新建专用文章及一条评论，先断言两者存在，再由作者调用删除；断言文章查不到且文章、评论计数均为0。
+     * 本用例验证成功删除结果，外层事务用于隔离数据；失败回滚由不带测试外层事务的专门测试验证。
+     */
     @Test
     @Transactional
     void testDeleteArticleWithComments() {
@@ -369,6 +442,9 @@ class BloghubApplicationTests {
         }
     }
 
+    /**
+     * 创建指定作者、分类1的专用文章，断言主键回填并返回实体；调用方用测试事务隔离数据，助手只负责准备。
+     */
     private Article createTestArticle(Integer userId) {
         Article article = new Article();
         article.setUserId(userId);

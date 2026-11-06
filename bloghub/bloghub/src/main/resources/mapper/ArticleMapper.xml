@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<!-- namespace绑定Java接口；各语句id与接口方法名对应。 -->
 <mapper namespace="com.sebastian.bloghub.mapper.ArticleMapper">
+    <!-- 详情映射：id映射articleId，联表字段通过association组装作者和分类嵌套对象。 -->
     <resultMap id="articleDetailMap" type="com.sebastian.bloghub.vo.ArticleDetailVO">
         <id column="id" property="articleId"/>
         <result column="title" property="title"/>
@@ -16,6 +18,7 @@
             <result column="category_name" property="categoryName"/>
         </association>
     </resultMap>
+    <!-- 列表映射：接收SQL生成的summary摘要，并把用户字段映射成AuthorVO。 -->
     <resultMap id="articleListItemMap" type="com.sebastian.bloghub.vo.ArticleListItemVO">
         <id column="id" property="articleId"/>
         <result column="title" property="title"/>
@@ -26,11 +29,13 @@
             <result column="user_name" property="userName"/>
         </association>
     </resultMap>
+    <!-- 插入后回填Article.id；SQL未提供的时间字段采用数据库默认值。 -->
     <insert id="insert" parameterType="com.sebastian.bloghub.entity.Article" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO blog_article (user_id, title, body, category_id)
         VALUES (#{userId}, #{title}, #{body}, #{categoryId})
     </insert>
 
+    <!-- 按主键查询文章，左关联用户、内关联分类，结果由详情resultMap组装。 -->
     <select id="findDetailById" resultMap="articleDetailMap">
         SELECT
             a.id,
@@ -48,6 +53,7 @@
         WHERE a.id = #{articleId};
     </select>
 
+    <!-- 作者和文章编号共同限制更新范围；updateTime由Service设置，数据库未配置自动更新时间。 -->
     <update id="update">
         update blog_article
         set title = #{title},
@@ -57,10 +63,12 @@
         where id = #{id} AND user_id = #{userId}
     </update>
 
+    <!-- 仅删除匹配作者的文章；外键RESTRICT要求Service先在事务内删除关联评论。 -->
     <delete id="deleteByIdAndUserId">
         delete from blog_article where id = #{articleId} and user_id = #{userId}
     </delete>
 
+    <!-- total统计全部匹配记录；分类为null时where不生成筛选条件，统计不应用分页。 -->
     <select id="countByCategory" resultType="java.lang.Long">
         select count(*) from blog_article
         <where>
@@ -70,6 +78,7 @@
         </where>
     </select>
 
+    <!-- 分类筛选与总数查询一致；LEFT取正文前100字符作为摘要，列表不返回完整正文。 -->
     <select id="findPage" resultMap="articleListItemMap">
         SELECT a.id, a.title, a.user_id, u.user_name, LEFT(a.body, 100) AS summary, a.create_time
         FROM blog_article a
@@ -79,6 +88,7 @@
                 category_id = #{categoryId}
             </if>
         </where>
+        <!-- 时间倒序后按主键倒序稳定同一时间的顺序；offset和pageSize由Service传入。 -->
         ORDER BY a.create_time DESC, a.id DESC
         LIMIT #{offset}, #{pageSize};
     </select>

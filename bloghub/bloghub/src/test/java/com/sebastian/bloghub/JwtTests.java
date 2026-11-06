@@ -21,6 +21,12 @@ import java.util.Base64;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * JWT工具及MVC认证入口测试，分别观察解析器异常与MockMvc请求的HTTP状态和响应体。
+ * MockMvc基于应用Web上下文执行Spring MVC流程，不启动真实网络服务器。
+ * 篡改测试保留原签名只修改载荷；过期测试须让签发与验签用同一密钥，以免把签名失败误当过期。
+ * 配置密钥仅用于构造令牌，不应在注释、日志或测试输出中打印。
+ */
 @SpringBootTest
 public class JwtTests {
 
@@ -31,6 +37,9 @@ public class JwtTests {
     private WebApplicationContext applicationContext;
 
     private MockMvc mockMvc;
+    /**
+     * 每个用例前基于应用Web上下文重建MockMvc，请求经过应用MVC配置并在测试进程内执行。
+     */
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(applicationContext).build();
@@ -39,6 +48,9 @@ public class JwtTests {
     @Value("${jwt.secret-base64}")
     private String configuredSecretBase64;
 
+    /**
+     * 生成合法JWT，解码载荷后只修改subject并保留原签名；断言工具解析抛签名异常，验证篡改不能通过验签。
+     */
     @Test
     public void testJwtUtil() {
         String token = jwtUtil.generateToken(123);
@@ -52,6 +64,9 @@ public class JwtTests {
         assertThrows(SignatureException.class, () -> jwtUtil.parseToken(tamperedToken));
     }
 
+    /**
+     * 把同样篡改载荷的JWT按Bearer格式请求创建文章；断言HTTP 401及统一失败响应，验证MVC认证入口处理验签失败。
+     */
     @Test
     public void testJwtUtilWithInvalidToken() throws Exception {
         String token = jwtUtil.generateToken(123);
@@ -77,6 +92,9 @@ public class JwtTests {
                 .andExpect(jsonPath("$.message").value("登录凭证无效或已过期"));
     }
 
+    /**
+     * 提交合法文章JSON但省略认证头；断言401、失败状态及登录提示，令失败原因集中于缺少凭证。
+     */
     @Test
     public void testCreateArticleWithoutAuthorization() throws Exception {
         mockMvc.perform(post("/articles")
@@ -95,6 +113,9 @@ public class JwtTests {
                 .andExpect(jsonPath("$.message").value("请先登录"));
     }
 
+    /**
+     * 使用只有Bearer前缀的空凭证；断言401和登录提示，验证空令牌按未登录处理。
+     */
     @Test
     public void testCreateArticleWithBlankToken() throws Exception {
         mockMvc.perform(post("/articles")
@@ -114,6 +135,9 @@ public class JwtTests {
                 .andExpect(jsonPath("$.message").value("请先登录"));
     }
 
+    /**
+     * 先签发合法令牌，再故意不加Bearer前缀；断言401和登录提示，验证认证头格式要求而非签名本身。
+     */
     @Test
     public void testCreateArticleWithoutBearerPrefix() throws Exception {
         String token = jwtUtil.generateToken(3);
@@ -134,6 +158,9 @@ public class JwtTests {
                 .andExpect(jsonPath("$.message").value("请先登录"));
     }
 
+    /**
+     * 用固定测试密钥与负有效期生成已过期JWT，再由同一工具实例解析；断言过期异常，排除不同密钥引起的验签失败。
+     */
     @Test
     public void testParseExpiredToken() {
         String secretBase64 = Base64.getEncoder().encodeToString(
@@ -145,6 +172,10 @@ public class JwtTests {
         assertThrows(ExpiredJwtException.class, () -> jwtUtil1.parseToken(token));
     }
 
+    /**
+     * 用应用配置的同一密钥和负有效期生成已过期JWT，再发MockMvc请求；断言401和统一无效或过期消息。
+     * 同密钥保证命中过期场景；此处测试MVC响应，不涉及真实HTTP网络传输。
+     */
     @Test
     public void testParseExpiredTokenWithHttp() throws Exception {
         JwtUtil jwtUtil1 = new JwtUtil(configuredSecretBase64, -60);

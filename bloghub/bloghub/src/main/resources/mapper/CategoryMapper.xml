@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<!-- 绑定CategoryMapper接口，语句id对应同名Java方法。 -->
 <mapper namespace="com.sebastian.bloghub.mapper.CategoryMapper">
 
+    <!-- 按主键判断分类存在性，返回0或1；单个简单参数绑定为分类编号。 -->
     <select id="countById" resultType="java.lang.Integer">
         select count(*) from blog_category where id = #{categoryId}
     </select>
 
+    <!-- id别名category_id配合驼峰映射填充categoryId，按编号升序保持顺序稳定。 -->
     <select id="findAll" resultType="com.sebastian.bloghub.vo.CategoryVO">
         select id as category_id, category_name from blog_category order by id ASC
     </select>

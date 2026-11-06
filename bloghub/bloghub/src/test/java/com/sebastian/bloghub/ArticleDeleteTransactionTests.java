@@ -16,6 +16,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 
+/**
+ * 文章删除的真实事务回滚集成测试，使用Spring容器、真实数据库和ArticleMapper局部spy。
+ * 刻意不加测试外层事务：准备数据先提交，再观察Service自己的事务能否恢复已删除评论。
+ * 只替换文章删除调用，评论删除及查询仍执行真实SQL，不能把测试事务的回滚当作业务事务已回滚。
+ * 前提是测试库已有指定用户和分类；finally只清理本次临时数据与线程上下文。
+ */
 @SpringBootTest
 class ArticleDeleteTransactionTests {
 
@@ -28,16 +34,26 @@ class ArticleDeleteTransactionTests {
     @MockitoSpyBean
     private ArticleMapper articleMapper;
 
+    /**
+     * 准备已提交文章及评论，再让文章删除抛异常；断言原异常向外传播且两条记录仍存在，验证异常触发回滚。
+     */
     @Test
     void restoresCommentsWhenArticleDeletionThrows() {
         verifyRollbackAfterArticleDeletionFailure(false);
     }
 
+    /**
+     * 准备已提交数据，将文章删除结果模拟为0行；断言Service抛500业务异常并恢复评论，验证主动失败也触发回滚。
+     */
     @Test
     void restoresCommentsWhenArticleDeletionAffectsNoRows() {
         verifyRollbackAfterArticleDeletionFailure(true);
     }
 
+    /**
+     * 先断言测试不处于事务，再创建文章及评论；spy在评论已真实删除后注入文章删除失败。
+     * Service退出后重新查库，断言文章保留且评论恢复；finally再清理临时数据，不参与回滚成功断言。
+     */
     private void verifyRollbackAfterArticleDeletionFailure(boolean returnZero) {
         // 测试本身没有事务，准备的数据在调用删除 Service 前就已提交。
         assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
@@ -100,6 +116,9 @@ class ArticleDeleteTransactionTests {
         }
     }
 
+    /**
+     * 按文章ID执行真实COUNT查询并确认结果非null，既用于事务内观察删除，也用于事务外观察恢复。
+     */
     private int countComments(Integer articleId) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM blog_comment WHERE article_id = ?", Integer.class, articleId);
