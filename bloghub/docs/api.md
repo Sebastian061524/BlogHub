@@ -7,12 +7,14 @@
 
 - 本地服务地址由工程启动配置决定；本文路径均为相对于服务地址的路径。
 - 请求体和响应体使用 JSON；有请求体时，请求头使用 `Content-Type: application/json`。
+- JSON 请求体无法读取（例如缺少结束花括号）时返回 HTTP 400，当前提示“请求参数不合法”；请求 Content-Type 不受支持时返回 HTTP 415，提示“不支持的请求内容类型”。两者响应体 status 均为 0，data 为 null；未知系统异常仍返回 500。
 - JSON 请求和响应字段、查询参数以及路径参数占位符统一使用小驼峰命名（camelCase），例如 `userName`、`categoryId`、`articleId`；Java DTO／VO 字段采用相同名称。
 - 数据库列名仍使用下划线，例如 `user_name`、`category_id`；数据库列与 Java 字段的映射由持久层处理，不改变对外接口字段名。
 - JSON 按同名字段绑定，不采用全局 SNAKE_CASE 命名策略；GET 查询参数按文档中的驼峰参数名传递，不能依靠 Jackson 的 JSON 配置转换查询参数名。
 - 页码和资源标识使用 32 位正整数，允许范围为 1–2147483647；超出范围按参数错误处理。
 - 受保护接口通过请求头 `Authorization: Bearer <token>` 携带登录获得的 JWT；`<token>` 为占位符，不是实际令牌。
 - 服务端验证凭证后确定当前用户，不使用请求体中的用户标识代替登录身份。
+- 缺少 Authorization、Bearer 后无 Token 或缺少 Bearer 前缀时返回 401、“请先登录”；Token 签名无效或已过期时返回 401、“登录凭证无效或已过期”。响应体 status 为 0，data 为 null。
 - 注册和登录无需 JWT；JWT 有效期暂定为 2 小时（7200 秒），到期后需重新登录，本周不提供自动续期或刷新令牌接口。
 - 文章列表、详情、分类列表和评论列表为公开查询，不要求 Authorization 请求头；没有请求体，不要求 Content-Type 请求头。
 - 文章和评论的时间字段在 Java 中使用 `LocalDateTime`，JSON 统一返回不带时区或偏移量的本地日期时间字符串，格式为 `yyyy-MM-dd'T'HH:mm:ss`，精确到秒，例如 `2026-11-02T16:00:00`；不附加 `+08:00` 或 `Z`。

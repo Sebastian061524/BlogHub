@@ -260,3 +260,50 @@ LOGIN-02、LOGIN-03、LOGIN-05 右侧仍以 200 为预期而报红，因此记�
 使用 JDK 17 编译四个算法源文件，对合并有序数组执行 8 个用例：普通合并、nums1 无有效元素、nums2 为空、nums2 全部较小、两个空数组、重复值、负数、nums2 全部较大，全部通过。临时检查程序未改动算法源码，结果日志为 `target/day4-algorithm-verification.log`。
 
 后续继续补充多条评论同时间排序、超过一页的文章数据与摘要 100 字符边界、HTTP 自动化用例、JWT 篡改／过期及上下文清理专项测试。当前结果证明已有测试通过，不代表上述未覆盖场景已经完成验收。
+
+## 11. Day 5 JWT、上下文清理与异常分类
+
+2026-11-06 使用 JDK 17.0.12 执行 `mvn -o test`，完整回归 56 项、失败 0、错误 0、跳过 0，BUILD SUCCESS。提交前再次完整运行，于 17:16（Asia/Shanghai）结束，结果相同，耗时约 37 秒。日志分别为工程目录 `target/day5-full-tests.log`、`target/day5-precommit-tests.log`，报告在 `target/surefire-reports`；均为本机构建产物，不纳入 Git。
+
+| 测试类 | 数量 | 结果 |
+| --- | --- | --- |
+| BloghubApplicationTests | 22 | 全部通过 |
+| UserInputValidationTests | 8 | 全部通过 |
+| ArticleDeleteTransactionTests | 2 | 全部通过 |
+| ArticleTests | 7 | 全部通过 |
+| CategoryTests | 1 | 全部通过 |
+| CommentTests | 6 | 全部通过 |
+| JwtTests | 7 | 全部通过 |
+| UserContextTests | 3 | 全部通过 |
+| 合计 | 56 | 失败 0，错误 0，跳过 0 |
+
+### 新增 10 项自动化用例
+
+HTTP 用例使用 MockMvc，经真实 Spring MVC 拦截器与全局异常处理链路执行；没有模拟掉 JwtUtil。它们不属于新增 Apifox 手动验证。
+
+| 测试 | 核心断言 |
+| --- | --- |
+| 工具层篡改 Token | 将合法 Token 的 subject 从 123 改为 456，重新 Base64URL 编码 Payload，保留 Header 和原签名；parseToken 抛出 JJWT 的 SignatureException |
+| HTTP 篡改 Token | 携带上述篡改凭证发布文章，401、status 0、“登录凭证无效或已过期” |
+| 缺少认证头 | 合法文章请求不携带 Authorization，401、status 0、“请先登录” |
+| 空 Token | Authorization 为 `Bearer `，401、status 0、“请先登录” |
+| 缺少 Bearer 前缀 | 认证头直接放有效 Token，401、status 0、“请先登录” |
+| 工具层过期 Token | 测试专用密钥、有效期 -60 秒生成并由同一 JwtUtil 解析，明确抛出 ExpiredJwtException |
+| HTTP 过期 Token | 使用应用配置的同一签名密钥生成 -60 秒 Token，401、status 0、“登录凭证无效或已过期” |
+| 字段校验失败后清理上下文 | 正常 Token、空标题返回 400，随后在测试 finally 清理之前断言 UserContext.getCurrentUserId() 为 null |
+| 畸形 JSON | 正常 Token、JSON 缺少结束花括号，400、status 0 |
+| 不支持的 Content-Type | 正常 Token、完整合法 JSON，但 Content-Type 为 text/plain，415、status 0 |
+
+上下文测试类的三个用例均在 finally 清理测试线程；只有字段校验失败用例额外断言请求结束后的上下文为空。不能将另外两个用例中的测试自行清理，表述为已验证对应路径的自动清理。
+
+### 先失败再修复与环境排查
+
+- 学习者先运行畸形 JSON 测试，实际为 500，日志显示 Jackson UnexpectedEndOfInputException。新增 Spring HttpMessageNotReadableException 专门处理后返回 400，当前消息为“请求参数不合法”。
+- text/plain 用例先实际返回 500，并确认 HttpMediaTypeNotSupportedException；新增对应分支后返回 415、“不支持的请求内容类型”。未知异常保留 500 兜底。
+- 单方法／IDEA Maven 测试可通过，终端完整运行却曾出现 56 项 Errors。Codex 读取报告确认缺少 BLOGHUB_JWT_SECRET 引发上下文启动失败。IDEA 的应用、JUnit、Maven 配置及终端环境变量相互独立；按实际入口配置两个必要变量后，Codex 的完整 Maven 回归通过，学习者也确认 IDEA Maven 配置运行可通过。未将环境错误当作业务断言失败。
+
+### 算法验证与尚未覆盖事项
+
+Codex 使用 JDK 17 实际编译 algorithm/longestConsecutive.java，运行 10 个针对性用例和 200 个固定随机种子、以排序参考实现对照的用例，210 项全部通过。输入整数范围为 -10⁹～10⁹；日志为 `target/day5-algorithm-verification.log`。这 210 项不计入后端 56 项，不据此报告性能或全部 int 边界验证。
+
+Day 6 继续覆盖成功请求后的上下文清理、越权拒绝后数据库内容不变、多条评论同时间排序、跨页文章排序和摘要 100 字符边界。JWT 负例当前未单独断言数据库无新增记录，56 项通过不代表这些尚未编写的断言已经通过，也不代表任意空库可直接运行测试。

@@ -1,6 +1,6 @@
 # BlogHub
 
-Java 后端独立项目练习。目前推进至 Day 4：已实现注册登录、JWT 请求认证、文章 CRUD 与作者权限、文章分页和分类筛选、分类列表、评论发布与查询，以及删除文章与评论的事务处理。核心接口已有基本验证，后续继续完善错误处理与边界测试。
+Java 后端独立项目练习。目前推进至 Day 5：已实现注册登录、JWT 请求认证、文章 CRUD 与作者权限、文章分页和分类筛选、分类列表、评论发布与查询，以及删除文章与评论的事务处理。已补充 JWT 篡改／过期拒绝、认证头错误、用户上下文清理专项测试，并修复畸形 JSON 和不支持的 Content-Type 被错误返回为 500 的问题；后续进入接口联调与业务边界补测。
 
 ## 当前内容
 
@@ -11,10 +11,13 @@ Java 后端独立项目练习。目前推进至 Day 4：已实现注册登录、
 - [Day 2 复盘](bloghub/docs/day2-review.md)：当天学习成果、协作情况与次日复习目标。
 - [Day 3 复盘](bloghub/docs/day3-review.md)：文章 CRUD、Java 基础、算法练习及次日复习安排。
 - [Day 4 复盘](bloghub/docs/day4-review.md)：分页、分类和评论功能、集合基础、合并数组与验证记录。
+- [Day 5 复盘](bloghub/docs/day5-review.md)：JWT、上下文清理和异常分类测试、HashMap、最长连续序列及原始复盘。
+- [会话交接](bloghub/docs/session-handoff.md)：当前学习进度、教学约定、环境和下一步任务。
 - [两数之和练习](algorithm/TwoSums.java)：保留暴力法和 HashMap 法，读取一份输入后分别输出两种结果。
 - [有效的字母异位词练习](algorithm/isAnagram.java)：保留 HashMap 和固定长度数组两种做法，输入限定为小写英文字母。
 - [存在重复元素练习](algorithm/containsDuplicate.java)：使用 HashSet 判断重复，平均时间 O(n)，最坏额外空间 O(n)。
 - [合并两个有序数组练习](algorithm/mergeTwoArrayList.java)：从后向前三指针合并，时间 O(m + n)，额外空间 O(1)。
+- [最长连续序列练习](algorithm/longestConsecutive.java)：HashSet 去重，仅从连续段起点向后扫描，平均时间 O(n)，额外空间 O(n)。
 
 ## 开发环境与目录
 
@@ -56,7 +59,7 @@ Java 后端独立项目练习。目前推进至 Day 4：已实现注册登录、
 
 JWT 使用 HS256，有效期由 `jwt.expiration-seconds` 配置，当前为 `7200` 秒。不要将真实密码、密钥或登录 Token 写入仓库。
 
-使用 IDEA 时，在应用运行配置和 JUnit 整个测试类的运行配置中分别设置这两个环境变量。仅给某个测试方法配置变量，不代表其他运行配置也已设置。
+使用 IDEA 时，在应用、JUnit 和 Maven 各自使用的运行配置中分别设置这两个环境变量。Maven 的 `bloghub [test]` 配置在“Java 选项 → 环境变量”中设置。仅给某个测试方法配置变量，不代表其他运行配置也已设置；IDEA 运行配置中的变量也不会自动传给终端中执行的 `mvn test`。
 
 使用 PowerShell 时，可以在准备运行 Maven 的同一终端中输入现有凭据；以下命令不会回显输入值：
 
@@ -117,6 +120,8 @@ mvn spring-boot:run
 
 响应统一为 `status`、`message`、`data`，其中 `status: 1` 表示成功、`status: 0` 表示失败，与 HTTP 状态码分别检查。Apifox 的异常用例也应配置对应的预期 HTTP 状态码。
 
+请求体为畸形 JSON 时返回 400、status 为 0；不支持的请求 Content-Type 返回 415、status 为 0。未知系统异常仍由 500 兜底处理，不向客户端返回内部异常细节。JWT 被篡改或过期时返回 401、“登录凭证无效或已过期”；缺少认证头、空 Token 或缺少 Bearer 前缀返回 401、“请先登录”。
+
 按学习约定保留 `DebugController`：`GET /debug/success`、`GET /debug/business-error`、`GET /debug/system-error` 和 `POST /debug/validate-register`，它们不计入正式业务接口。
 
 ## 运行后端测试
@@ -138,7 +143,7 @@ mvn test
 
 依赖已缓存时可使用 `mvn -o test`；需要清除旧编译产物时运行 `mvn -o clean test`。报告位于工程目录的 `target/surefire-reports`。注册和文章写入等测试使用事务回滚；删除回滚测试自身不开启事务，会提交临时数据并在 finally 中清理。测试会访问真实数据库，应使用本地学习库。
 
-Day 4 收尾于 2026-11-05 使用 JDK 17 执行 `mvn -o clean test`，46 项自动化测试全部通过，包含删除失败后的事务回滚及新增分页、分类、评论测试；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
+Day 5 于 2026-11-06 使用 JDK 17 执行 `mvn -o test`，56 项自动化测试全部通过，失败 0、错误 0、跳过 0。在 Day 4 的 46 项基础上，新增 JwtTests（7）和 UserContextTests（3）；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
 
 ## 运行算法练习
 
@@ -172,4 +177,6 @@ HashMap 法索引：[0, 1]
 
 合并数组练习可使用 `javac -encoding UTF-8 algorithm/mergeTwoArrayList.java` 编译，再执行 `java -cp algorithm mergeTwoArrayList`；当前 main 展示合并 `[1,2,3]` 与 `[2,5,6]`。Day 4 收尾另用临时检查程序验证了 8 个用例，包括空数组、重复值和负数，全部通过。
 
-Day 5 先复习 ArrayList、LinkedList 和数组扩容，再继续完善 JWT、权限、输入校验与错误处理。后续仍需补齐 Token 篡改／过期请求、用户上下文清理专项测试、JSON 解析与不支持的 Content-Type 等异常分类，以及多条评论排序、文章跨页和摘要截断等业务边界。当前结果不代表整个 MVP 已验收完成。
+最长连续序列可使用 `javac -encoding UTF-8 algorithm/longestConsecutive.java` 编译，再执行 `java -cp algorithm longestConsecutive`；当前 main 样例输出 4。Day 5 使用 JDK 17 实际执行 10 个针对性用例和 200 个固定随机种子的排序方案对照，210 项全部通过。数值范围按 -10⁹～10⁹，算法验证不计入后端 56 项测试。
+
+Day 6 先复习 Token 签发与解析，再补接口联调、越权拒绝后数据不变、正常成功请求的上下文清理、多条评论排序、文章跨页和摘要截断等验证。当前结果不代表整个 MVP 已验收完成；从零初始化脚本和交付审查留待 Day 7。
