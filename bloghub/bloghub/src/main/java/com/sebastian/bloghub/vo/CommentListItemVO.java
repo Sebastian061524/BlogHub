@@ -16,6 +16,6 @@ public class CommentListItemVO {
     private AuthorVO author;
     // 评论正文。
     private String text;
-    // 评论创建时间；列表按此时间和编号升序排列。
+    // 评论创建时间；列表优先展示时间较晚的评论，时间相同时 ID 较大的在前。
     private LocalDateTime createTime;
 }

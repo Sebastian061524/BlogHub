@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -174,6 +175,51 @@ public class CommentTests {
         assertNotNull(list);
         assertNotNull(list.getItems());
         assertTrue(list.getItems().isEmpty());
+    }
+
+    @Test
+    @Transactional
+    void testCommentListOrdersByCreateTimeThenId() {
+        Article article = new Article();
+        article.setUserId(1);
+        article.setTitle("Test Article");
+        article.setBody("This is a test article.");
+        article.setCategoryId(1);
+        articleMapper.insert(article);
+        Integer articleId = article.getId();
+        assertNotNull(articleId);
+        Comment comment1 = new Comment();
+        comment1.setArticleId(articleId);
+        comment1.setUserId(1);
+        comment1.setText("This is the first comment.");
+        commentMapper.createComment(comment1);
+        Integer comment1Id = comment1.getId();
+        assertNotNull(comment1Id);
+        Comment comment2 = new Comment();
+        comment2.setArticleId(articleId);
+        comment2.setUserId(1);
+        comment2.setText("This is the second comment.");
+        commentMapper.createComment(comment2);
+        Integer comment2Id = comment2.getId();
+        assertNotNull(comment2Id);
+        Comment comment3 = new Comment();
+        comment3.setArticleId(articleId);
+        comment3.setUserId(1);
+        comment3.setText("This is the third comment.");
+        commentMapper.createComment(comment3);
+        Integer comment3Id = comment3.getId();
+        assertNotNull(comment3Id);
+        LocalDateTime time1 = LocalDateTime.of(2026, 11, 7, 10, 0, 0);
+        LocalDateTime time2 = LocalDateTime.of(2026, 11, 7, 10, 1, 0);
+        jdbcTemplate.update("UPDATE blog_comment SET create_time = ? WHERE id = ?", time2, comment1Id);
+        jdbcTemplate.update("UPDATE blog_comment SET create_time = ? WHERE id = ?", time1, comment2Id);
+        jdbcTemplate.update("UPDATE blog_comment SET create_time = ? WHERE id = ?", time1, comment3Id);
+        List<CommentListItemVO> comments = commentMapper.findByArticleId(articleId);
+        assertNotNull(comments);
+        assertEquals(3, comments.size());
+        assertEquals(comment1Id, comments.get(0).getCommentId());
+        assertEquals(comment3Id, comments.get(1).getCommentId());
+        assertEquals(comment2Id, comments.get(2).getCommentId());
     }
 
 }

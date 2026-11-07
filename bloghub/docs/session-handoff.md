@@ -1,6 +1,6 @@
 # BlogHub 学习会话交接文档
 
-更新时间：2026-11-06（Asia/Shanghai）。交接节点：第 1 周 Day 5 核心训练和原始复盘已完成，文档与 Git 收尾纳入本次提交，准备开始 Day 6。
+更新时间：2026-11-07（Asia/Shanghai）。第 1 周 Day 6 核心训练、全量回归和原始复盘已完成，准备开始 Day 7。
 
 ## 1. 给新会话的首要说明
 
@@ -34,9 +34,9 @@
 | Day 4 提交 | `30bab43e59d2dd06757130d9c30bc2b2ae7c5012` |
 | 提交说明 | `feat: complete BlogHub Day 4 pagination categories and comments` |
 
-上表为 Day 4 历史提交，已推送。Day 5 提交说明为 `test: complete BlogHub Day 5 JWT validation and error handling`；最新 SHA 和本地／远端状态应通过实际 Git 查询确认，不把 Day 4 SHA 继续当作最新进度。用户本次已明确要求补文档并提交、推送 Day 5；该授权不自动延续到未来新增修改。
+上表为 Day 4 历史提交，已推送。Day 5 测试和后续代码注释也已推送。Day 6 的测试、排序变更、复刷代码和文档随本次交接收尾纳入版本控制。最新 SHA 和本地、远端状态以实际 Git 查询为准。
 
-以下内容在本次收尾前为未跟踪的本地学习资料，保留，不擅自加入 Day 5 提交：
+以下未跟踪的学习资料保留在本地：
 
 ```text
 homework/
@@ -57,8 +57,9 @@ java_backend_interview_plan.md
 | Day 3 | 文章 CRUD、鉴权、作者权限、删除事务 | String/StringBuilder/常量池；存在重复元素 |
 | Day 4 | 文章分页及分类筛选、分类列表、评论创建和查询 | ArrayList/LinkedList/扩容；合并两个有序数组 |
 | Day 5 | JWT 篡改／过期和认证头负例、字段校验失败后的上下文清理；修复畸形 JSON 400 与不支持 Content-Type 415 | HashMap 结构／冲突／扩容；最长连续序列 |
+| Day 6 | 成功请求的上下文清理、越权修改拒绝后数据保持原样、评论降序、跨页排序和摘要边界 | JWT 复述、异常体系、泛型、接口与抽象类；独立重写最长连续序列 |
 
-**Day 5 核心训练已完成，不等同于整个项目最终验收完成。**
+Day 6 原始复盘和导师观察分别记录在 [day6-review.md](day6-review.md)。学习者希望 Day 7 先独立复习常见异常及其分类。项目从零初始化和交付验收安排在 Day 7。
 
 Day 5 原始复盘：
 
@@ -136,7 +137,7 @@ Mockito／ByteBuddy 动态代理、bootstrap classpath sharing 的 JVM 警告不
 - 列表条目为 articleId、title、author、summary、createTime；当前契约没有 categoryId，不因筛选参数存在就随意加响应字段。
 - 分类按 id ASC 返回 categoryId/categoryName。
 - 评论请求体字段为 text，非空白，最多 500 字符。任何登录用户均可评论公开文章，不要求评论者是文章作者。
-- 评论按 create_time ASC、id ASC 排序；文章不存在 404，文章存在无评论则 200、items 空数组。
+- 评论按 create_time DESC、id DESC 排序，最新的评论在前。文章不存在返回 404，文章存在且无评论时返回 200、items 空数组。
 - 非法参数 400、未认证 401、非作者修改／删除 403、资源不存在 404；未知系统异常 500，不能向客户端泄漏内部异常细节。
 
 以 `api.md` 中完整设计为准；更早对话出现过的单数路径、标题 20 字等草案已被当前实现和文档替代。
@@ -172,6 +173,8 @@ Mockito／ByteBuddy 动态代理、bootstrap classpath sharing 的 JVM 警告不
 - `JwtUtil` 方法逻辑未因 Day 5 修改；按用户要求添加中文注释。generateToken 将 subject、iat、exp 放入载荷并以服务端密钥签名；parseToken 验签并检查过期时间后返回 Claims；getUserId 再读取 subject 转为整数。Base64URL 不是加密，Token 不包含服务端密钥。
 
 ## 7. 测试证据、数据依赖与保护事项
+
+Day 6 完整回归于 **2026-11-07 16:59（Asia/Shanghai）** 完成。JDK 17 执行 `mvn -o test`，**61 项通过，失败 0、错误 0、跳过 0**。在 Day 5 基础上，ArticleTests 增至 9 项，CommentTests 增至 7 项，UserContextTests 增至 5 项。日志为工程目录 `target/day6-full-tests.log`，五条新增用例详见 [测试记录](test-cases.md#12-day-6-接口集成与边界回归)。
 
 Day 5 提交前完整回归发生于 **2026-11-06 17:16**，JDK 17 执行 `mvn -o test`：**56 项，失败 0、错误 0、跳过 0，BUILD SUCCESS**，约 37 秒。此前 Day 4 的 46 项结果保留为历史，不累计成额外用例。
 
@@ -219,21 +222,14 @@ Day 5 在提示下完成最长连续序列：HashSet 去重，遍历集合，仅
 
 Codex 实际用 JDK 17 编译新增算法源码，执行 10 个针对性用例和 200 个固定随机种子、与排序参考实现对照的用例，210 项全部通过。临时验证程序与 class 只在 target，日志为 `target/day5-algorithm-verification.log`；不计入后端 56 项，不作性能数据结论。
 
-明日先复习 Token 签发和解析。ArrayList／LinkedList 的访问、扩容和定位后插入区别已经在 Day 5 开场复习，不重新从 Day 4 教起。
+Day 6 已复述 Token 签发和解析，并独立重写最长连续序列。学习者起初把单次查询的平均 O(1) 当成整体复杂度，随后能用连续数组解释外层检查所有数字、只有起点向后扩展。本次复刷以课堂代码审查和推演为证据。
 
 ## 9. 新会话接下来怎么带
 
-用户已完成 Day 5 核心训练、HashMap 与最长连续序列，并提供原始复盘。接下来开始 Day 6：
-
-1. 先让学习者不看代码复述 generateToken、parseToken、getUserId 的输入／输出、签名和过期检查，等回答后反馈，不一次给整套答案。
-2. 读当前代码与 test-cases.md 第 11 节，选一个真实待测场景：正常成功请求的上下文清理，或越权修改／删除被拒绝后数据库内容不变。
-3. 再按时间补多条评论同时间排序、超过一页文章排序、100 字符摘要边界。未验证前不要写成已通过；JWT 负例也尚未单独断言数据库没有新增记录。
-4. 已完成的篡改／过期、缺失／空／错误前缀、字段校验失败后的清理、畸形 JSON 与 Content-Type 测试无需重做，除非代码变动或新失败有依据。
-5. 面试 Day 6 主题为异常体系、泛型、接口与抽象类；算法按计划复刷本周错题，优先独立重写最长连续序列并解释复杂度。
-6. 保持原始复盘、导师观察、测试记录和 Git 收尾；用户已提醒不能在复盘后遗漏文档、提交与推送，但仍应按当次授权范围执行。
-7. Day 7 再整理从零初始化与启动流程、SQL、最终交付审查，不声称本日已完成最终验收。
-
-未完成的专项验证不能因为 56 项通过自动视为覆盖，也无需因此否定已经达成的 Day 5 目标。
+1. Day 7 先复习常见异常分类。给一个例子让学习者判断是否为受检异常，再根据回答讲解编译器是否要求捕获或声明。
+2. 把 BlogHub 初始化所需 SQL 与课堂上的大小写、重复插入实验分开。用独立数据库验证从零初始化、应用启动和测试所需数据，保护已有本地学习库。
+3. 核对 README、API 文档和测试记录，并做最终交付审查。越权删除被拒后的数据状态和无效 JWT 被拒后无新增文章仍属待验证项。
+4. 安排约 20 分钟 Java 基础模拟面试，让学习者口述登录、作者权限与删除事务。保留原始复盘，按当次授权处理 Git 收尾。
 
 ## 10. 新会话可直接发送的开场文字
 
@@ -242,10 +238,10 @@ Codex 实际用 JDK 17 编译新增算法源码，执行 10 个针对性用例�
 以及根目录 java_backend_8_week_codex_plan.md 和 java_backend_interview_plan.md，
 继续担任我的 Java 后端导师。
 
-第 1 周 BlogHub Day 5 已完成，准备开始 Day 6，请先核对最新 Git 状态。
-先带我复习 Token 的签发和解析，再选择一个尚未覆盖的接口边界推进联调。
+第 1 周 BlogHub Day 6 已完成，准备开始 Day 7，请先核对最新 Git 状态。
+先带我复习常见异常及受检／非受检分类，再整理并验证项目从零初始化和启动流程。
 默认让我自己写代码，每次一个小步骤；只有我明确要求时才直接实现或修改。
 请先核对当前工作区，不要重新开始 Day 1，也不要删除 DebugController。
 ```
 
-相关文档：根目录 README.md；本目录 requirements.md、design.md、api.md、test-cases.md、day2-review.md、day3-review.md、day4-review.md、day5-review.md。复盘中旧的“尚未推送”是当时历史状态，最新提交与推送状态以实际 Git 核对为准。
+相关文档：根目录 README.md；本目录 requirements.md、design.md、api.md、test-cases.md、day2-review.md、day3-review.md、day4-review.md、day5-review.md、day6-review.md。复盘中旧的“尚未推送”是当时历史状态，最新提交与推送状态以实际 Git 核对为准。

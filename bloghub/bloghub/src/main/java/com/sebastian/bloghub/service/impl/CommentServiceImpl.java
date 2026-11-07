@@ -69,7 +69,7 @@ public class CommentServiceImpl implements CommentService {
         if(articleDetailVO == null){
             throw new BusinessException(404, "文章不存在");
         }
-        // Mapper 同时读取评论作者信息，并按创建时间、评论 ID 升序排列，列表无需在此再排序。
+        // Mapper 同时读取评论作者信息，并按创建时间和评论 ID 降序排列。
         List<CommentListItemVO> comments = commentMapper.findByArticleId(articleId);
         CommentListVO commentListVO = new CommentListVO();
         commentListVO.setItems(comments);

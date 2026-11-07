@@ -1,7 +1,10 @@
 package com.sebastian.bloghub;
 
 import com.sebastian.bloghub.context.UserContext;
+import com.sebastian.bloghub.entity.Article;
+import com.sebastian.bloghub.mapper.ArticleMapper;
 import com.sebastian.bloghub.util.JwtUtil;
+import com.sebastian.bloghub.vo.ArticleDetailVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,9 +13,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +36,9 @@ public class UserContextTests {
     private WebApplicationContext applicationContext;
 
     private MockMvc mockMvc;
+    @Autowired
+    private ArticleMapper articleMapper;
+
     /**
      * 每次基于应用Web上下文构建MockMvc，用于执行拦截器和MVC异常处理流程，无需启动网络服务器。
      */
@@ -124,4 +131,66 @@ public class UserContextTests {
         }
     }
 
+    @Test
+    @Transactional
+    public void testUserContextClearedAfterSuccessfulRequest() throws Exception {
+        String token ="Bearer " + jwtUtil.generateToken(4);
+        try {
+            mockMvc.perform(MockMvcRequestBuilders.post("/articles")
+                    .header("Authorization", token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                            {
+                              "title": "测试标题",
+                              "body": "测试正文",
+                              "categoryId": 1
+                            }
+                            """
+                    ))
+                    .andExpect(status().isCreated());
+            assertNull(UserContext.getCurrentUserId());
+        } finally {
+            UserContext.removeCurrentUserId();
+        }
+    }
+
+    @Test
+    @Transactional
+    public void testArticleRemainsUnchangedWhenNonAuthorUpdatesIt() throws Exception {
+        try {
+            UserContext.removeCurrentUserId();
+            Article article = new Article();
+            String title = "测试标题";
+            String body = "测试正文";
+            Integer categoryId = 1;
+            article.setUserId(4);
+            article.setTitle(title);
+            article.setBody(body);
+            article.setCategoryId(categoryId);
+            articleMapper.insert(article);
+            Integer articleId = article.getId();
+            mockMvc.perform(MockMvcRequestBuilders.put("/articles/{id}", articleId)
+                    .header("Authorization", "Bearer " + jwtUtil.generateToken(1))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                            """
+                                    {
+                                      "title": "更新后的标题",
+                                      "body": "更新后的正文",
+                                      "categoryId": 2
+                                    }
+                                    """
+                    ))
+                .andExpect(status().isForbidden());
+            ArticleDetailVO detail = articleMapper.findDetailById(articleId);
+            assertNotNull(detail);
+            assertEquals(title, detail.getTitle());
+            assertEquals(body, detail.getBody());
+            assertEquals(categoryId, detail.getCategory().getCategoryId());
+            assertEquals(4, detail.getAuthor().getUserId());
+        } finally {
+            UserContext.removeCurrentUserId();
+        }
+    }
 }

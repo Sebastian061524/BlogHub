@@ -25,12 +25,12 @@
         values (#{articleId}, #{userId}, #{text})
     </insert>
 
-    <!-- 查询指定文章的全部评论并左关联用户；按创建时间升序，再按主键升序稳定展示。 -->
+    <!-- 查询指定文章的全部评论并左关联用户；最新的评论在前，创建时间相同时主键较大的在前。 -->
     <select id="findByArticleId" resultMap="commentListItemMap">
         SELECT c.id, c.text, c.create_time, c.user_id, u.user_name
         FROM blog_comment c LEFT JOIN blog_user u ON c.user_id = u.id
         WHERE c.article_id = #{articleId}
-        ORDER BY c.create_time ASC, c.id ASC
+        ORDER BY c.create_time DESC, c.id DESC
     </select>
 
 </mapper>

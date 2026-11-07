@@ -19,6 +19,6 @@ public interface CommentMapper {
     /** 插入评论；XML配置自增主键回填comment.id，创建时间使用数据库默认值。 */
     void createComment(Comment comment);
 
-    /** 查询指定文章的评论和作者信息，返回按时间及编号升序排列的列表。 */
+    /** 查询指定文章的评论和作者信息，按创建时间降序排列，时间相同时按评论 ID 降序排列。 */
     List<CommentListItemVO> findByArticleId(Integer articleId);
 }

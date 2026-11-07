@@ -307,3 +307,17 @@ HTTP 用例使用 MockMvc，经真实 Spring MVC 拦截器与全局异常处理�
 Codex 使用 JDK 17 实际编译 algorithm/longestConsecutive.java，运行 10 个针对性用例和 200 个固定随机种子、以排序参考实现对照的用例，210 项全部通过。输入整数范围为 -10⁹～10⁹；日志为 `target/day5-algorithm-verification.log`。这 210 项不计入后端 56 项，不据此报告性能或全部 int 边界验证。
 
 Day 6 继续覆盖成功请求后的上下文清理、越权拒绝后数据库内容不变、多条评论同时间排序、跨页文章排序和摘要 100 字符边界。JWT 负例当前未单独断言数据库无新增记录，56 项通过不代表这些尚未编写的断言已经通过，也不代表任意空库可直接运行测试。
+
+## 12. Day 6 接口集成与边界回归
+
+2026-11-07 16:59（Asia/Shanghai），使用 JDK 17.0.12 执行 `mvn -o test`，61 项通过，失败 0、错误 0、跳过 0，BUILD SUCCESS，耗时约 33 秒。日志为工程目录 `target/day6-full-tests.log`。
+
+| 新增用例 | 核心断言 |
+| --- | --- |
+| `UserContextTests.testUserContextClearedAfterSuccessfulRequest` | 有效 Token 发布文章返回 201，测试 `finally` 手动清理前断言 `UserContext` 为空 |
+| `UserContextTests.testArticleRemainsUnchangedWhenNonAuthorUpdatesIt` | 非作者携带自己的 Token 发送 PUT，HTTP 403；重新查库确认标题、正文、分类及作者保持原值 |
+| `CommentTests.testCommentListOrdersByCreateTimeThenId` | 临时文章的三条评论全部返回；创建时间较晚的在前，同一时间 ID 较大的在前 |
+| `ArticleTests.testArticleOrderAcrossPages` | 临时分类的 11 篇同时间文章分为 10 条和 1 条，两页总数都是 11，合并后的 ID 序列与插入顺序的倒序一致 |
+| `ArticleTests.testArticleSummaryAtLengthBoundary` | 99 字及 100 字正文完整保留，101 字正文只保留前 100 字；比较完整的 ID 到摘要映射 |
+
+新增测试使用事务回滚清理临时数据，仍需要本地有效的用户和分类等基础数据。评论排序用例直接走 Mapper，文章分页和摘要用例走 Service。越权删除后数据库状态、无效 JWT 被拒后没有新增文章仍待专项验证。

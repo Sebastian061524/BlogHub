@@ -14,7 +14,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -215,5 +221,84 @@ public class ArticleTests {
         assertThrows(BusinessException.class, () -> articleService.getPage(0, null));
     }
 
+    @Test
+    @Transactional
+    void testArticleOrderAcrossPages(){
+        String categoryName = "page-" + UUID.randomUUID().toString().substring(0, 12);
+        jdbcTemplate.update(
+                "INSERT INTO blog_category (category_name) VALUES (?)", categoryName);
+        Integer categoryId = jdbcTemplate.queryForObject(
+                "SELECT id FROM blog_category WHERE category_name = ?",
+                Integer.class, categoryName);
+        List<Integer> ids = new ArrayList<>();
+        for(int i = 0; i < 11; i++){
+            Article article = new Article();
+            article.setTitle("title-" + i);
+            article.setBody("body-" + i);
+            article.setCategoryId(categoryId);
+            article.setUserId(4);
+            articleMapper.insert(article);
+            LocalDateTime createTime = LocalDateTime.of(2023, 1, 1, 0, 0, 0);
+            jdbcTemplate.update("UPDATE blog_article SET create_time = ? WHERE id = ?", createTime, article.getId());
+            ids.add(article.getId());
+        }
+        ArticlePageVO page1 = articleService.getPage(1, categoryId);
+        ArticlePageVO page2 = articleService.getPage(2, categoryId);
+        assertNotNull(page1);
+        assertNotNull(page2);
+        assertEquals(10, page1.getItems().size());
+        assertEquals(11L, page1.getTotal());
+        assertEquals(1, page2.getItems().size());
+        assertEquals(11L, page2.getTotal());
+        List<Integer> afterids = new ArrayList<>();
+        for(ArticleListItemVO articleListItemVO : page1.getItems()){
+            afterids.add(articleListItemVO.getArticleId());
+        }
+
+        for(ArticleListItemVO articleListItemVO : page2.getItems()){
+            afterids.add(articleListItemVO.getArticleId());
+        }
+        Collections.reverse(ids);
+        assertEquals(ids, afterids);
+    }
+
+    /** 用独立分类验证 99、100 和 101 字正文的摘要，按文章 ID 比较以同时检查有无漏项。 */
+    @Test
+    @Transactional
+    void testArticleSummaryAtLengthBoundary() {
+        String categoryName = "page-" + UUID.randomUUID().toString().substring(0, 12);
+        jdbcTemplate.update(
+                "INSERT INTO blog_category (category_name) VALUES (?)", categoryName);
+        Integer categoryId = jdbcTemplate.queryForObject(
+                "SELECT id FROM blog_category WHERE category_name = ?",
+                Integer.class, categoryName);
+        String body99 = "文".repeat(99);
+        String body100 = "文".repeat(100);
+        Map<String, String> expectedByBody = Map.of(
+                body99, body99,
+                body100, body100,
+                body100 + "尾", body100);
+
+        Map<Integer, String> expectedById = new HashMap<>();
+        for (Map.Entry<String, String> example : expectedByBody.entrySet()) {
+            Article article = new Article();
+            article.setUserId(4);
+            article.setTitle("摘要边界测试");
+            article.setBody(example.getKey());
+            article.setCategoryId(categoryId);
+            articleMapper.insert(article);
+            assertNotNull(article.getId());
+            expectedById.put(article.getId(), example.getValue());
+        }
+
+        ArticlePageVO page = articleService.getPage(1, categoryId);
+        assertNotNull(page);
+        assertEquals(expectedByBody.size(), page.getItems().size());
+        Map<Integer, String> actualById = new HashMap<>();
+        for (ArticleListItemVO item : page.getItems()) {
+            actualById.put(item.getArticleId(), item.getSummary());
+        }
+        assertEquals(expectedById, actualById);
+    }
 
 }
