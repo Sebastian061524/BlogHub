@@ -1,6 +1,6 @@
 # BlogHub 学习会话交接文档
 
-更新时间：2026-11-07（Asia/Shanghai）。第 1 周 Day 6 核心训练、全量回归和原始复盘已完成，准备开始 Day 7。
+更新时间：2026-11-08（Asia/Shanghai）。第 1 周 BlogHub Day 7 的交付验证、模拟面试和复盘已完成。下一次开始第 2 周 Day 8。
 
 ## 1. 给新会话的首要说明
 
@@ -34,7 +34,7 @@
 | Day 4 提交 | `30bab43e59d2dd06757130d9c30bc2b2ae7c5012` |
 | 提交说明 | `feat: complete BlogHub Day 4 pagination categories and comments` |
 
-上表为 Day 4 历史提交，已推送。Day 5 测试和后续代码注释也已推送。Day 6 的测试、排序变更、复刷代码和文档随本次交接收尾纳入版本控制。最新 SHA 和本地、远端状态以实际 Git 查询为准。
+上表为 Day 4 历史提交，已推送。Day 5 测试和后续代码注释也已推送。Day 6 提交 `f72706b` 已推送至 `main`。最新 SHA 和本地、远端状态以实际 Git 查询为准。
 
 以下未跟踪的学习资料保留在本地：
 
@@ -58,8 +58,9 @@ java_backend_interview_plan.md
 | Day 4 | 文章分页及分类筛选、分类列表、评论创建和查询 | ArrayList/LinkedList/扩容；合并两个有序数组 |
 | Day 5 | JWT 篡改／过期和认证头负例、字段校验失败后的上下文清理；修复畸形 JSON 400 与不支持 Content-Type 415 | HashMap 结构／冲突／扩容；最长连续序列 |
 | Day 6 | 成功请求的上下文清理、越权修改拒绝后数据保持原样、评论降序、跨页排序和摘要边界 | JWT 复述、异常体系、泛型、接口与抽象类；独立重写最长连续序列 |
+| Day 7 | 独立初始化脚本、空库启动和主链路验证、缺失资源 HTTP 404、交付检查 | 受检与非受检异常复习；登录、作者权限和删除事务模拟面试 |
 
-Day 6 原始复盘和导师观察分别记录在 [day6-review.md](day6-review.md)。学习者希望 Day 7 先独立复习常见异常及其分类。项目从零初始化和交付验收安排在 Day 7。
+Day 7 的原始复盘和导师观察分别记录在 [day7-review.md](day7-review.md)。学习者希望下次独立复习用户登录流程。
 
 Day 5 原始复盘：
 
@@ -174,6 +175,8 @@ Mockito／ByteBuddy 动态代理、bootstrap classpath sharing 的 JVM 警告不
 
 ## 7. 测试证据、数据依赖与保护事项
 
+Day 7 完整回归于 **2026-11-08 15:16（Asia/Shanghai）** 完成。JDK 17 执行 `mvn -o test`，**62 项通过，失败 0、错误 0、跳过 0**。新增的 `UserContextTests.testNotFound` 验证缺失资源返回 HTTP 404、`status: 0`。日志为 `target/day7-final-tests.log`。独立空库的初始化和手动 HTTP 验证另记于 [测试记录](test-cases.md#13-day-7-空库启动与交付回归)。
+
 Day 6 完整回归于 **2026-11-07 16:59（Asia/Shanghai）** 完成。JDK 17 执行 `mvn -o test`，**61 项通过，失败 0、错误 0、跳过 0**。在 Day 5 基础上，ArticleTests 增至 9 项，CommentTests 增至 7 项，UserContextTests 增至 5 项。日志为工程目录 `target/day6-full-tests.log`，五条新增用例详见 [测试记录](test-cases.md#12-day-6-接口集成与边界回归)。
 
 Day 5 提交前完整回归发生于 **2026-11-06 17:16**，JDK 17 执行 `mvn -o test`：**56 项，失败 0、错误 0、跳过 0，BUILD SUCCESS**，约 37 秒。此前 Day 4 的 46 项结果保留为历史，不累计成额外用例。
@@ -206,7 +209,7 @@ JwtTests 的 7 项覆盖篡改工具／HTTP、缺认证头、空 Token、缺 Bea
 
 尽量创建测试自己的临时记录并回滚，ThreadLocal 写入测试用 finally 清理。验证列表时必须断言找到目标记录，不能仅在可能不进入的循环分支内断言。读取刚插入的评论按回填 commentId 查询，不能取文章评论列表第一条当作新记录。
 
-`sql/bloghub.sql` 含课堂用户名大小写实验及故意重复插入，不能直接宣称整文件可重复初始化成功；从零初始化的脚本整理留待验收阶段。不要对真实本地库执行破坏性重建。
+用 `sql/init.sql` 初始化空库。学习者在 `bloghub_day7` 验证过初始化，并在 8081 端口走通注册、登录、发布和查询。`sql/bloghub.sql` 继续保留为课堂实验记录。空库初始化仅提供表结构与分类，完整回归仍依赖本节列出的测试数据。
 
 手动 Apifox 已验证正常及多种错误响应，详见 test-cases.md 第 10 节与 day4-review.md。部分边界只有用户“都通过”的确认；201／400 等曾因 Apifox 默认预期 200 显示红色，人工响应正确不等于其自动断言通过。
 
@@ -226,10 +229,10 @@ Day 6 已复述 Token 签发和解析，并独立重写最长连续序列。学�
 
 ## 9. 新会话接下来怎么带
 
-1. Day 7 先复习常见异常分类。给一个例子让学习者判断是否为受检异常，再根据回答讲解编译器是否要求捕获或声明。
-2. 把 BlogHub 初始化所需 SQL 与课堂上的大小写、重复插入实验分开。用独立数据库验证从零初始化、应用启动和测试所需数据，保护已有本地学习库。
-3. 核对 README、API 文档和测试记录，并做最终交付审查。越权删除被拒后的数据状态和无效 JWT 被拒后无新增文章仍属待验证项。
-4. 安排约 20 分钟 Java 基础模拟面试，让学习者口述登录、作者权限与删除事务。保留原始复盘，按当次授权处理 Git 收尾。
+1. 先让学习者独立复述 BlogHub 用户登录流程，重点区分注册时的 `encode()` 和登录时的 `matches()`，再按回答给反馈。
+2. 按八周计划启动第 2 周在线考试系统。Day 8 从拆分需求和 MVP 范围开始，之后由学习者提交表结构草案和接口清单。
+3. Day 8 基础主题为进程与线程、线程创建和线程状态，算法为反转链表。继续按每次一小步的教学约定推进。
+4. 如回到 BlogHub，越权删除被拒后的数据状态和无效 JWT 被拒后无新增文章仍是专项测试待办。按当次授权处理 Git 收尾。
 
 ## 10. 新会话可直接发送的开场文字
 
@@ -238,10 +241,10 @@ Day 6 已复述 Token 签发和解析，并独立重写最长连续序列。学�
 以及根目录 java_backend_8_week_codex_plan.md 和 java_backend_interview_plan.md，
 继续担任我的 Java 后端导师。
 
-第 1 周 BlogHub Day 6 已完成，准备开始 Day 7，请先核对最新 Git 状态。
-先带我复习常见异常及受检／非受检分类，再整理并验证项目从零初始化和启动流程。
+第 1 周 BlogHub Day 7 已完成，准备开始第 2 周 Day 8，请先核对最新 Git 状态。
+先让我独立复述 BlogHub 登录流程，然后带我拆分在线考试系统的需求和 MVP 范围。
 默认让我自己写代码，每次一个小步骤；只有我明确要求时才直接实现或修改。
 请先核对当前工作区，不要重新开始 Day 1，也不要删除 DebugController。
 ```
 
-相关文档：根目录 README.md；本目录 requirements.md、design.md、api.md、test-cases.md、day2-review.md、day3-review.md、day4-review.md、day5-review.md、day6-review.md。复盘中旧的“尚未推送”是当时历史状态，最新提交与推送状态以实际 Git 核对为准。
+相关文档：根目录 README.md；本目录 requirements.md、design.md、api.md、test-cases.md、day2-review.md、day3-review.md、day4-review.md、day5-review.md、day6-review.md、day7-review.md。复盘中旧的“尚未推送”是当时历史状态，最新提交与推送状态以实际 Git 核对为准。

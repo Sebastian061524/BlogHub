@@ -321,3 +321,24 @@ Day 6 继续覆盖成功请求后的上下文清理、越权拒绝后数据库�
 | `ArticleTests.testArticleSummaryAtLengthBoundary` | 99 字及 100 字正文完整保留，101 字正文只保留前 100 字；比较完整的 ID 到摘要映射 |
 
 新增测试使用事务回滚清理临时数据，仍需要本地有效的用户和分类等基础数据。评论排序用例直接走 Mapper，文章分页和摘要用例走 Service。越权删除后数据库状态、无效 JWT 被拒后没有新增文章仍待专项验证。
+
+## 13. Day 7 空库启动与交付回归
+
+### 独立数据库启动验证
+
+学习者在 `bloghub_day7` 空库执行 [`init.sql`](../bloghub/sql/init.sql)。首次执行因 `auto increment` 拼写收到 MySQL 1064，修正为 `AUTO_INCREMENT` 后报告执行成功。应用实例连接该库并监听 8081。
+
+| 检查 | 实际结果与证据 |
+| --- | --- |
+| `GET /categories` | 用户截图确认 `status: 1`，按顺序返回 Java、数据库、学习记录。Codex 单独请求确认 HTTP 200 |
+| `GET /articles` | 用户截图确认初始化后 `total: 0`、`items: []`。Codex 后续请求确认接口返回 HTTP 200 |
+| `POST /users` | Apifox 截图显示实际 HTTP 201、`status: 1`。右侧校验当时预期 200 |
+| `POST /auth/login` | Apifox 截图显示 HTTP 200、`status: 1`，响应带 Token，`expiresIn` 为 7200 |
+| `POST /articles` | 用户提供的响应体显示 `status: 1`，返回文章 ID 1 |
+| `GET /articles/1` | 用户提供的响应体显示 `status: 1`，标题、正文、作者和分类与发布数据一致 |
+
+### 缺失资源回归
+
+修复前，Codex 直接请求不存在的路径和 `/favicon.ico`，均返回 HTTP 500。学习者先运行 `UserContextTests.testNotFound`，得到预期 404、实际 500。添加 `NoResourceFoundException` 专门处理后，该 MockMvc 测试通过，断言 HTTP 404 和 `status: 0`。修复后的验证依据为 MockMvc 回归。
+
+2026-11-08 15:16（Asia/Shanghai），Codex 使用 JDK 17.0.12 在配置了测试数据的学习库执行 `mvn -o test`。**62 项通过，失败 0、错误 0、跳过 0，BUILD SUCCESS**，耗时约 32 秒。日志为工程目录 `target/day7-final-tests.log`。新库手动验证单独记录，完整测试仍依赖额外数据。越权删除后数据库内容及无效 JWT 被拒后无新增文章仍待专项验证。

@@ -117,7 +117,7 @@
 | blog_article | create_time, id | 普通联合索引 | 全部文章按发布时间及 id 倒序分页 |
 | blog_article | category_id, create_time, id | 普通联合索引 | 按分类筛选后按时间及 id 倒序分页 |
 | blog_article | user_id | 普通索引 | 支持作者外键约束 |
-| blog_comment | article_id, create_time, id | 普通联合索引 | 查询某篇文章的评论并按时间及 id 正序排列，也支持按文章删除评论 |
+| blog_comment | article_id, create_time, id | 普通联合索引 | 支持按文章查询和删除评论。查询时按创建时间降序，时间相同时按评论 ID 降序 |
 | blog_comment | user_id | 普通索引 | 支持评论者外键约束 |
 
 说明：
@@ -146,7 +146,7 @@
 
 ## 9. 当前实现与后续验证
 
-- 四表、用户名大小写规则、外键和索引已落实到 `bloghub/bloghub/sql/bloghub.sql`（相对于仓库根目录）；文件还包含练习用的重复插入语句，执行范围与限制见根目录 README。
+- 四张表、用户名大小写规则、外键、索引和初始分类见 [init.sql](../bloghub/sql/init.sql)。用户名大小写和重复插入实验保存在原 `bloghub.sql`，启动步骤见[根目录 README](../../README.md#数据库初始化)。
 - 密码使用 BCrypt；JWT 请求认证由拦截器执行。当前同步请求中，验证后的用户 ID 存入 UserContext 的 ThreadLocal，Service 获取身份，afterCompletion 清理上下文。
 - 作者公开信息、文章列表和详情字段见 api.md 第 5、6 节。时间字段统一使用 LocalDateTime，返回 `yyyy-MM-dd'T'HH:mm:ss`，不附加时区偏移量，按 Asia/Shanghai 本地时间解释。
 - 已执行的唯一约束、文章查询与更新、删除成功和失败回滚等验证见 test-cases.md；未执行的执行计划、并发场景和其余边界仍需后续验证，不能将设计约定视为全部验收通过。

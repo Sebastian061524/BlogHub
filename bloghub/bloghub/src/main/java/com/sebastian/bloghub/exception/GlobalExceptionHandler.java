@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 统一转换 MVC 调用链中的异常，使错误响应也采用 Result 结构。
@@ -78,4 +79,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(415).body(Result.error("不支持的请求内容类型"));
     }
 
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResourceFoundException(NoResourceFoundException ex){
+        return ResponseEntity.status(404).body(Result.error("请求的资源不存在"));
+    }
 }

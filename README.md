@@ -30,7 +30,7 @@ Java 后端独立项目练习。目前推进至 Day 5：已实现注册登录、
 | MyBatis Starter | 4.0.0 |
 | JJWT | 0.13.0 |
 
-仓库根目录保存本 README 和算法练习；设计文档位于 `bloghub/docs`，**Maven 工程位于 `bloghub/bloghub`**，其中包含 `pom.xml`、`src` 和 `sql/bloghub.sql`。
+仓库根目录保存本 README 和算法练习，设计文档位于 `bloghub/docs`。**Maven 工程位于 `bloghub/bloghub`**，其中包含 `pom.xml`、`src` 和数据库初始化脚本 `sql/init.sql`。
 
 先检查 `java -version` 和 `mvn -version`，确认 Maven 使用 JDK 17。IDEA 的项目 SDK、模块 SDK、Maven 运行 JDK 也使用 17。
 
@@ -38,15 +38,15 @@ Java 后端独立项目练习。目前推进至 Day 5：已实现注册登录、
 
 ## 数据库初始化
 
-1. 启动本机 MySQL，在 Navicat 中打开 `bloghub/bloghub/sql/bloghub.sql`。
-2. 在新的本地学习数据库上，选中并执行文件开头的建库、四张表、三个联合索引及三个分类的插入语句，执行范围到 `insert into blog_category(...)` 为止。
-3. 查询分类，确认只有 `Java`、`数据库`、`学习记录` 三条记录。数据库和表使用 `utf8mb4_0900_as_cs`，用户名区分大小写。
+1. 在 MySQL 中新建并选中一个空库。使用默认应用配置时，库名为 `bloghub`。字符集选 `utf8mb4`，排序规则选 `utf8mb4_0900_as_cs`，以保留用户名的大小写区别。
+2. 在该库的查询窗口中运行 `SELECT DATABASE();`，确认选中了目标库。然后执行整份 [`init.sql`](bloghub/bloghub/sql/init.sql)，创建四张表、三个联合索引并写入初始分类。
+3. 用 `SHOW TABLES;` 确认有 `blog_user`、`blog_category`、`blog_article`、`blog_comment` 四张表。执行 `SELECT id, category_name FROM blog_category ORDER BY id;`，确认依次返回 `Java`、`数据库`、`学习记录`。
 
-文件末尾的 `alice`、`Alice` 插入及查询是手动验证语句，第二次插入 `Alice` 会故意触发唯一约束错误；其中的密码是验证用占位值，不能用于 BCrypt 登录。需要运行用户名映射测试时，在新库上仅执行首次插入 `alice` 和首次插入 `Alice` 的语句。
+`init.sql` 需要在空库中手动执行一次。原 [`bloghub.sql`](bloghub/bloghub/sql/bloghub.sql) 保留为课堂记录，包含用户名大小写实验和故意触发唯一约束的重复插入。
 
-此 SQL 目前是初始化与手动练习的合并文件：索引创建和分类插入不能重复执行，`CREATE TABLE IF NOT EXISTS` 也不会更新已有表结构。不要将整份文件作为可重复执行的迁移脚本。应用不会自动执行该 SQL。
+应用默认用 `root` 连接 `jdbc:mysql://localhost:3306/bloghub`。在独立库验证启动时，可以在应用运行配置中设置 `SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/bloghub_day7` 和 `SERVER_PORT=8081`。如果使用其他 MySQL 账号，可以通过 `SPRING_DATASOURCE_USERNAME` 指定。
 
-数据库连接在 `bloghub/bloghub/src/main/resources/application.yaml` 中配置，当前为 `localhost:3306/bloghub`、用户名 `root`；使用其他连接地址或账号时修改对应配置。
+初始化只准备应用表结构和初始分类。全量 Maven 测试还需要额外的用户和文章等测试数据，准备方式见[运行后端测试](#运行后端测试)。
 
 ## 环境变量
 
@@ -114,13 +114,13 @@ mvn spring-boot:run
 
 文章详情、文章列表、分类列表和评论列表公开访问。文章写接口和发表评论通过 `Authorization: Bearer <token>` 携带登录返回的凭证；拦截器验证后，将用户 ID 存入 UserContext 的 ThreadLocal，Service 读取身份，请求结束时清理。修改、删除只允许作者操作，SQL 也包含作者条件；删除 Service 在同一个事务中先删评论，再删文章。登录用户可以评论其他用户的文章，请求体只提交 text，文章 ID 来自路径、评论者 ID 来自登录上下文。
 
-文章列表支持可选查询参数 page（默认 1）和 categoryId（不传查询所有分类），每页固定 10 条，按创建时间和文章 ID 降序；摘要取正文前 100 字符。传入空参数与省略参数不同，空值返回 400。评论列表不分页，按创建时间和评论 ID 升序；已有文章没有评论时 items 返回空数组。
+文章列表支持可选查询参数 page（默认 1）和 categoryId（不传查询所有分类），每页固定 10 条，按创建时间和文章 ID 降序；摘要取正文前 100 字符。传入空参数与省略参数不同，空值返回 400。评论列表不分页，最新发布的评论在前，同一时间按评论 ID 降序。已有文章没有评论时，items 返回空数组。
 
 详情中的 `author`、`category` 为嵌套对象，由 MyBatis XML 的 resultMap／association 映射。Java 时间字段使用 LocalDateTime，JSON 格式约定为 `yyyy-MM-dd'T'HH:mm:ss`，不附加偏移量，按 Asia/Shanghai 本地时间解释。
 
 响应统一为 `status`、`message`、`data`，其中 `status: 1` 表示成功、`status: 0` 表示失败，与 HTTP 状态码分别检查。Apifox 的异常用例也应配置对应的预期 HTTP 状态码。
 
-请求体为畸形 JSON 时返回 400、status 为 0；不支持的请求 Content-Type 返回 415、status 为 0。未知系统异常仍由 500 兜底处理，不向客户端返回内部异常细节。JWT 被篡改或过期时返回 401、“登录凭证无效或已过期”；缺少认证头、空 Token 或缺少 Bearer 前缀返回 401、“请先登录”。
+请求体为畸形 JSON 时返回 400，不支持的请求 Content-Type 返回 415，不存在的路径返回 404。这些错误响应的 `status` 为 0。未知系统异常由 500 兜底，客户端收到通用错误消息。JWT 被篡改或过期时返回 401、“登录凭证无效或已过期”；缺少认证头、空 Token 或缺少 Bearer 前缀返回 401、“请先登录”。
 
 按学习约定保留 `DebugController`：`GET /debug/success`、`GET /debug/business-error`、`GET /debug/system-error` 和 `POST /debug/validate-register`，它们不计入正式业务接口。
 
@@ -128,7 +128,7 @@ mvn spring-boot:run
 
 当前测试依赖本机 MySQL 和已有测试数据，尚未实现自动准备全部测试数据。在本地学习库中准备：
 
-- 恰好三个预置分类；大小写不同的 `Alice`、`alice` 两个用户。
+- 恰好三个预置分类，以及大小写不同的 `Alice`、`alice` 两个用户。用户名映射测试可参考课堂脚本中各用户名首次插入的语句。课堂脚本的密码占位值无法用于 BCrypt 登录。
 - 通过注册接口创建 `Day2User01`，密码使用测试源码中约定的公开练习值 `BlogHub!2026`，由应用生成 BCrypt 哈希。此账号仅用于本地测试。
 - 部分课堂测试还使用用户 ID 1、4（当前库中 Day2User01 的 ID 为 4）及分类 ID 1、2；换库时需要核对或调整测试数据。文章详情和修改用例已自行创建临时文章；评论测试仍依赖文章 7 存在，不依赖它的标题或正文。
 - 分类 ID 4、文章 ID 999 在当前异常测试中应不存在；这些依赖尚未全部替换为自动准备的测试数据。
@@ -143,7 +143,7 @@ mvn test
 
 依赖已缓存时可使用 `mvn -o test`；需要清除旧编译产物时运行 `mvn -o clean test`。报告位于工程目录的 `target/surefire-reports`。注册和文章写入等测试使用事务回滚；删除回滚测试自身不开启事务，会提交临时数据并在 finally 中清理。测试会访问真实数据库，应使用本地学习库。
 
-Day 5 于 2026-11-06 使用 JDK 17 执行 `mvn -o test`，56 项自动化测试全部通过，失败 0、错误 0、跳过 0。在 Day 4 的 46 项基础上，新增 JwtTests（7）和 UserContextTests（3）；具体批次与覆盖范围见测试记录。Apifox 的 HTTP 手动验证单独记录，不计入自动化测试数量。
+Day 7 于 2026-11-08 使用 JDK 17 执行 `mvn -o test`，62 项自动化测试全部通过，失败 0、错误 0、跳过 0。独立空库的启动和业务流程验证单独记录。覆盖范围与结果见 [测试记录](bloghub/docs/test-cases.md#13-day-7-空库启动与交付回归)。
 
 ## 运行算法练习
 
@@ -177,6 +177,4 @@ HashMap 法索引：[0, 1]
 
 合并数组练习可使用 `javac -encoding UTF-8 algorithm/mergeTwoArrayList.java` 编译，再执行 `java -cp algorithm mergeTwoArrayList`；当前 main 展示合并 `[1,2,3]` 与 `[2,5,6]`。Day 4 收尾另用临时检查程序验证了 8 个用例，包括空数组、重复值和负数，全部通过。
 
-最长连续序列可使用 `javac -encoding UTF-8 algorithm/longestConsecutive.java` 编译，再执行 `java -cp algorithm longestConsecutive`；当前 main 样例输出 4。Day 5 使用 JDK 17 实际执行 10 个针对性用例和 200 个固定随机种子的排序方案对照，210 项全部通过。数值范围按 -10⁹～10⁹，算法验证不计入后端 56 项测试。
-
-Day 6 先复习 Token 签发与解析，再补接口联调、越权拒绝后数据不变、正常成功请求的上下文清理、多条评论排序、文章跨页和摘要截断等验证。当前结果不代表整个 MVP 已验收完成；从零初始化脚本和交付审查留待 Day 7。
+最长连续序列可使用 `javac -encoding UTF-8 algorithm/longestConsecutive.java` 编译，再执行 `java -cp algorithm longestConsecutive`；当前 main 样例输出 4。Day 5 使用 JDK 17 实际执行 10 个针对性用例和 200 个固定随机种子的排序方案对照，210 项全部通过。数值范围按 -10⁹～10⁹，算法验证单独记录。

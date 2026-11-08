@@ -193,4 +193,12 @@ public class UserContextTests {
             UserContext.removeCurrentUserId();
         }
     }
+
+
+    @Test
+    void testNotFound() throws Exception{
+        mockMvc.perform(MockMvcRequestBuilders.get("/day7-missing-resource-check"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(0));
+    }
 }
